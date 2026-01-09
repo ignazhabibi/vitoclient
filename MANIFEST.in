@@ -6,8 +6,6 @@ include setup.py
 recursive-include src/vitoclient *.py
 
 # Exclude documentation and local config
-prune docs
 exclude tokens.json
-exclude debug_coordinator.py
 global-exclude *.pyc
 global-exclude __pycache__

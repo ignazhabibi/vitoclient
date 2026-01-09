@@ -10,3 +10,11 @@ venv/
 tokens.json
 
 
+
+# Testing & Build
+.coverage
+htmlcov/
+.pytest_cache/
+build/
+dist/
+*.egg-info/
