@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vitoclient"
+version = "0.1.0"
+description = "Async Python client for Viessmann Climate Solutions API"
+authors = [
+  { name = "Antigravity", email = "antigravity@example.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "aiohttp>=3.8.0",
+    "pkce>=1.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "aioresponses",
+]
+
+[project.scripts]
+vitoclient = "vitoclient.cli:main"
