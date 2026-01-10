@@ -45,7 +45,6 @@ export VIESSMANN_CLIENT_ID=<YOUR_CLIENT_ID>
 python demo.py
 ```
 
-## Library Usage
 
 ### Basic Example
 
@@ -173,6 +172,19 @@ Get the current value of a specific feature.
 ```bash
 vi_api_client get-feature "heating.sensors.temperature.outside"
 ```
+
+### 5. Get Consumption (Analytics)
+Fetch daily energy consumption for heating, domestic hot water (DHW), and total.
+
+```bash
+# Get summary (all metrics)
+vi_api_client get-consumption
+
+# Get specific metric
+vi_api_client get-consumption --metric total
+```
+*   Returns flattened features prefixed with `analytics.` (e.g. `analytics.heating.power.consumption.total`).
+*   Data is fetched from the Viessmann Analytics API (not live data).
 
 ### Corporate Proxy / SSL Issues
 If you are testing from a corporate network that intercepts SSL (e.g., Zscaler), you may encounter certificate errors. Use the `--insecure` flag to bypass verification:

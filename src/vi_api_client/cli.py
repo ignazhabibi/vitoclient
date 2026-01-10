@@ -212,6 +212,51 @@ async def cmd_get_feature(args):
         except Exception as e:
             _LOGGER.error("Error fetching feature: %s", e)
 
+async def cmd_get_consumption(args):
+    """Get consumption data."""
+    client_id, redirect_uri = get_client_config(args)
+
+    async with await create_session(args) as session:
+        auth = OAuth(client_id, redirect_uri, args.token_file, session)
+        client = Client(auth)
+        
+        try:
+            # Auto-discovery if IDs are missing
+            inst_id = args.installation_id
+            gw_serial = args.gateway_serial
+            dev_id = args.device_id
+            
+            if not (inst_id and gw_serial and dev_id):
+                gateways = await client.get_gateways()
+                if not gateways:
+                    print("No gateways found.")
+                    return
+                
+                gw = gateways[0]
+                gw_serial = gw.get("serial")
+                inst_id = gw.get("installationId")
+                
+                devices = await client.get_devices(inst_id, gw_serial)
+                if not devices:
+                    print(f"No devices found on gateway {gw_serial}")
+                    return
+                
+                target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
+                dev_id = target_dev.get("id")
+                print(f"Using Device: {dev_id} (Gateway: {gw_serial}, Inst: {inst_id})")
+
+            print(f"Fetching consumption (Metric: {args.metric})...")
+            result = await client.get_today_consumption(gw_serial, dev_id, metric=args.metric)
+            
+            if isinstance(result, list):
+                for f in result:
+                     print(f"- {f.name}: {f.formatted_value}")
+            else:
+                print(f"- {result.name}: {result.formatted_value}")
+                
+        except Exception as e:
+            _LOGGER.error("Error fetching consumption: %s", e)
+
 def main():
     """Main CLI entrypoint."""
     # Parent parser for common arguments
@@ -246,6 +291,13 @@ def main():
     parser_feature.add_argument("--gateway-serial", help="Gateway Serial (optional)")
     parser_feature.add_argument("--device-id", help="Device ID (optional)")
     
+    # Get Consumption
+    parser_consumption = subparsers.add_parser("get-consumption", help="Get energy consumption for today", parents=[common_parser])
+    parser_consumption.add_argument("--metric", default="summary", choices=["summary", "total", "heating", "dhw"], help="Metric to fetch")
+    parser_consumption.add_argument("--installation-id", type=int, help="Installation ID (optional)")
+    parser_consumption.add_argument("--gateway-serial", help="Gateway Serial (optional)")
+    parser_consumption.add_argument("--device-id", help="Device ID (optional)")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -267,6 +319,8 @@ def main():
             asyncio.run(cmd_list_features(args))
         elif args.command == "get-feature":
             asyncio.run(cmd_get_feature(args))
+        elif args.command == "get-consumption":
+            asyncio.run(cmd_get_consumption(args))
     except KeyboardInterrupt:
         pass
 

@@ -6,8 +6,9 @@ import aiohttp
 
 from vi_api_client.api import Client
 from vi_api_client.auth import AbstractAuth
-from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS
+from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_ANALYTICS_THERMAL
 from vi_api_client.exceptions import VitoConnectionError
+from vi_api_client.models import Feature
 
 
 class MockAuth(AbstractAuth):
@@ -263,3 +264,49 @@ class TestClient:
                 # 4 enabled + 1 disabled = 5
                 assert len(features_all) == 5
                 assert any(f["name"] == "heating.disabled.feature" for f in features_all)
+
+    @pytest.mark.asyncio
+    async def test_get_today_consumption(self):
+        """Test the get_today_consumption helper with metrics."""
+        with aioresponses() as m:
+            url = f"{API_BASE_URL}{ENDPOINT_ANALYTICS_THERMAL}"
+            
+            
+            mock_data = {
+                "data": {
+                    "data": {
+                        "summary": {
+                            "heating.power.consumption.total": 15.5,
+                            "heating.power.consumption.heating": 10.0,
+                            "heating.power.consumption.dhw": 5.5
+                        }
+                    }
+                }
+            }
+            
+            # We expect multiple calls (one for summary, one for individual)
+            # aioresponses matches by method/url, we can just queue the responses
+            m.post(url, payload=mock_data, repeat=True)
+            
+            async with aiohttp.ClientSession() as session:
+                auth = MockAuth(session)
+                client = Client(auth)
+                
+                # 1. Summary (Default) -> List[Feature]
+                result_summary = await client.get_today_consumption("gw", "dev", metric="summary")
+                assert isinstance(result_summary, list)
+                assert len(result_summary) == 3
+                
+                f_total = next(f for f in result_summary if f.name == "analytics.heating.power.consumption.total")
+                assert f_total.value == 15.5
+                assert f_total.unit == "kilowattHour"
+
+                # 2. Individual Metric -> Single Feature
+                result_total = await client.get_today_consumption("gw", "dev", metric="total")
+                assert isinstance(result_total, Feature)
+                assert result_total.name == "analytics.heating.power.consumption.total"
+                assert result_total.value == 15.5
+                
+                # 3. Invalid Metric
+                with pytest.raises(ValueError):
+                    await client.get_today_consumption("gw", "dev", metric="invalid")

@@ -1,6 +1,6 @@
 """Viessmann API Client."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from .auth import AbstractAuth
 from .const import ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_ANALYTICS_THERMAL, API_BASE_URL
@@ -140,6 +140,72 @@ class Client:
                 
         return all_devices
     
+    async def get_today_consumption(
+        self,
+        gateway_serial: str,
+        device_id: str,
+        metric: str = "summary"
+    ) -> Union[Feature, List[Feature]]:
+        """Fetch energy consumption for the current day.
+        
+        Convenience wrapper around the Analytics API.
+        
+        :param metric: One of 'summary', 'total', 'heating', 'dhw'.
+                       'summary' returns a List of all 3 features (efficient).
+                       Others return a single Feature object.
+        :return: Feature object or List of Feature objects.
+        """
+        from datetime import datetime
+        
+        # Calculate start/end for "Today"
+        now = datetime.now()
+        start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        end_dt = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+        
+        # Map metric to API property names
+        mapping = {
+            "total": "heating.power.consumption.total",
+            "heating": "heating.power.consumption.heating",
+            "dhw": "heating.power.consumption.dhw"
+        }
+        
+        if metric == "summary":
+            properties = list(mapping.values())
+        elif metric in mapping:
+            properties = [mapping[metric]]
+        else:
+            raise ValueError(f"Invalid metric: {metric}. Must be 'summary', 'total', 'heating', or 'dhw'.")
+        
+        # Reuse the generic fetcher
+        raw_data = await self.get_aggregated_consumption(
+            gateway_serial, device_id, start_dt, end_dt, properties, resolution="1d"
+        )
+        
+        # Parse response based on actual structure:
+        # { "data": { "data": { "summary": { "prop": value, ... } } } }
+        features = []
+        
+        # Navigate to summary dict
+        data_block = raw_data.get("data", {}).get("data", {})
+        summary = data_block.get("summary", {})
+        
+        for prop_name in properties:
+            # Extract value directly from summary dict
+            val = summary.get(prop_name, 0.0)
+            
+            f = Feature(
+                name=f"analytics.{prop_name}",
+                properties={"value": {"value": val, "unit": "kilowattHour"}}, 
+                is_enabled=True,
+                is_ready=True
+            )
+            features.append(f)
+            
+        if metric != "summary" and len(features) == 1:
+            return features[0]
+            
+        return features
+
     async def get_aggregated_consumption(
         self,
         gateway_serial: str,
@@ -149,19 +215,7 @@ class Client:
         properties: List[str],
         resolution: str = "1d"
     ) -> Dict[str, Any]:
-        """Fetch aggregated energy data from the Analytics API.
-        
-        This endpoint provides historical and potentially more accurate consumption/production data 
-        than the standard feature properties.
-        
-        :param gateway_serial: The serial number of the gateway.
-        :param device_id: The ID of the device (e.g. "0").
-        :param start_dt: Start datetime in ISO 8601 format (e.g. "2023-01-01T00:00:00").
-        :param end_dt: End datetime in ISO 8601 format.
-        :param properties: List of feature names to fetch (e.g. ["heating.power.consumption.total"]).
-        :param resolution: Data resolution, default "1d".
-        :return: JSON response containing the data lake result.
-        """
+        """Fetch aggregated energy data from the Analytics API (Raw Access)."""
         url = f"{API_BASE_URL}{ENDPOINT_ANALYTICS_THERMAL}"
         
         payload = {
