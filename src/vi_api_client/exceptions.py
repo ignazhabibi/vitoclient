@@ -1,13 +1,13 @@
 """Exceptions for Viessmann API Client."""
 
-class VitoError(Exception):
+class ViError(Exception):
     """Base exception for Viessmann API."""
     pass
 
-class VitoAuthError(VitoError):
+class ViAuthError(ViError):
     """Authentication failed."""
     pass
 
-class VitoConnectionError(VitoError):
+class ViConnectionError(ViError):
     """Connection issue with the API."""
     pass

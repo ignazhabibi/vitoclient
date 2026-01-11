@@ -3,7 +3,7 @@
 from .auth import AbstractAuth, OAuth
 from .api import Client
 from .mock_client import MockViessmannClient
-from .exceptions import VitoError, VitoAuthError, VitoConnectionError
+from .exceptions import ViError, ViAuthError, ViConnectionError
 from .models import Device, Feature
 
 __all__ = [
@@ -12,8 +12,8 @@ __all__ = [
     "AbstractAuth",
     "Device",
     "Feature",
-    "VitoError",
-    "VitoAuthError",
-    "VitoConnectionError",
+    "ViError",
+    "ViAuthError",
+    "ViConnectionError",
     "MockViessmannClient",
 ]

@@ -10,7 +10,7 @@ import aiohttp
 import pkce
 
 from .const import ENDPOINT_AUTHORIZE, ENDPOINT_TOKEN, DEFAULT_SCOPES
-from .exceptions import VitoAuthError
+from .exceptions import ViAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ class OAuth(AbstractAuth):
     async def async_fetch_details_from_code(self, code: str) -> None:
         """Exchange code for tokens."""
         if not self._pkce_verifier:
-            raise VitoAuthError("PKCE Verifier missing. Did you call get_authorization_url()?")
+            raise ViAuthError("PKCE Verifier missing. Did you call get_authorization_url()?")
 
         data = {
             "client_id": self.client_id,
@@ -122,7 +122,7 @@ class OAuth(AbstractAuth):
         async with self.websession.post(ENDPOINT_TOKEN, data=data) as resp:
             if resp.status != 200:
                 text = await resp.text()
-                raise VitoAuthError(f"Failed to fetch token: {text}")
+                raise ViAuthError(f"Failed to fetch token: {text}")
             
             self._token_info = await resp.json()
             self._save_tokens()
@@ -131,7 +131,7 @@ class OAuth(AbstractAuth):
         """Refresh the access token."""
         refresh_token = self._token_info.get("refresh_token")
         if not refresh_token:
-            raise VitoAuthError("No refresh token available.")
+            raise ViAuthError("No refresh token available.")
 
         data = {
             "client_id": self.client_id,
@@ -143,7 +143,7 @@ class OAuth(AbstractAuth):
             if resp.status != 200:
                 text = await resp.text()
                 # If refresh fails, we might need to re-auth, but here we just raise
-                raise VitoAuthError(f"Failed to refresh token: {text}")
+                raise ViAuthError(f"Failed to refresh token: {text}")
             
             new_tokens = await resp.json()
             # Update tokens (preserve refresh_token if not sent back, though standard usually sends a new one)
@@ -153,7 +153,7 @@ class OAuth(AbstractAuth):
     async def async_get_access_token(self) -> str:
         """Return valid access token, refreshing if necessary."""
         if not self._token_info:
-            raise VitoAuthError("No tokens loaded. Please authenticate first.")
+            raise ViAuthError("No tokens loaded. Please authenticate first.")
 
         # Check expiration (buffer of 60 seconds)
         # Usually 'expires_in' is returned, we should have calculated 'expires_at' or check if we can simply try refresh
@@ -186,7 +186,7 @@ class OAuth(AbstractAuth):
                      self._token_info["expires_at"] = time.time() + self._token_info["expires_in"]
                      self._save_tokens()
                 return self._token_info["access_token"]
-            except VitoAuthError:
+            except ViAuthError:
                 # If refresh failed, maybe the access token is still valid? Unlikely if we thought it expired.
                 # Just raise.
                 raise

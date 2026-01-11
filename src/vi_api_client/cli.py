@@ -25,10 +25,7 @@ def load_config(token_file: str) -> Dict[str, Any]:
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
-def save_config(token_file: str, config: Dict[str, Any]) -> None:
-    """Save configuration to token file."""
-    with open(token_file, "w") as f:
-        json.dump(config, f, indent=2)
+
 
 async def create_session(args) -> aiohttp.ClientSession:
     """Create aiohttp session with optional insecure SSL."""

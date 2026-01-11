@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Union
 
 from .auth import AbstractAuth
 from .const import ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_ANALYTICS_THERMAL, API_BASE_URL
-from .exceptions import VitoConnectionError
+from .exceptions import ViConnectionError
 from .models import Device, Feature
 
 class Client:
@@ -19,7 +19,7 @@ class Client:
         url = f"{API_BASE_URL}{ENDPOINT_INSTALLATIONS}"
         async with await self.auth.request("GET", url) as resp:
             if resp.status != 200:
-                raise VitoConnectionError(f"Error fetching installations: {resp.status}")
+                raise ViConnectionError(f"Error fetching installations: {resp.status}")
             data = await resp.json()
             return data.get("data", [])
 
@@ -28,7 +28,7 @@ class Client:
         url = f"{API_BASE_URL}{ENDPOINT_GATEWAYS}"
         async with await self.auth.request("GET", url) as resp:
             if resp.status != 200:
-                raise VitoConnectionError(f"Error fetching gateways: {resp.status}")
+                raise ViConnectionError(f"Error fetching gateways: {resp.status}")
             data = await resp.json()
             return data.get("data", [])
 
@@ -39,7 +39,7 @@ class Client:
             if resp.status != 200:
                 # 404 might mean no devices or wrong IDs
                 text = await resp.text()
-                raise VitoConnectionError(f"Error fetching devices: {resp.status} - {text}")
+                raise ViConnectionError(f"Error fetching devices: {resp.status} - {text}")
             data = await resp.json()
             return data.get("data", [])
 
@@ -49,7 +49,7 @@ class Client:
         async with await self.auth.request("GET", url) as resp:
             if resp.status != 200:
                 text = await resp.text()
-                raise VitoConnectionError(f"Error fetching features: {resp.status} - {text}")
+                raise ViConnectionError(f"Error fetching features: {resp.status} - {text}")
             data = await resp.json()
             # The API response structure for features usually wraps them in 'data' list
             return data.get("data", [])
