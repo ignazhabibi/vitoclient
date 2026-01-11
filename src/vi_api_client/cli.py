@@ -231,8 +231,23 @@ async def cmd_get_feature(args):
                 target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
                 dev_id = target_dev.get("id")
 
-            feature = await client.get_feature(inst_id, gw_serial, dev_id, args.feature_name)
-            print(json.dumps(feature, indent=2))
+            feature_data = await client.get_feature(inst_id, gw_serial, dev_id, args.feature_name)
+            
+            if args.raw:
+                print(json.dumps(feature_data, indent=2))
+            else:
+                from vi_api_client.models import Feature
+                f_model = Feature.from_api(feature_data)
+                expanded = f_model.expand()
+                
+                if not expanded:
+                     # Fallback if it filters out everything (e.g. empty structural feature)
+                     print(f"Feature '{args.feature_name}' exists but has no scalar values (Structural).")
+                     print("Use --raw to see underlying structure.")
+                
+                for item in expanded:
+                    print(f"- {item.name}: {item.formatted_value}")
+
         except Exception as e:
             _LOGGER.error("Error fetching feature: %s", e)
 
@@ -322,6 +337,7 @@ def main():
     parser_feature.add_argument("--installation-id", type=int, help="Installation ID (optional)")
     parser_feature.add_argument("--gateway-serial", help="Gateway Serial (optional)")
     parser_feature.add_argument("--device-id", help="Device ID (optional)")
+    parser_feature.add_argument("--raw", action="store_true", help="Show raw JSON response")
     
     # Get Consumption
     parser_consumption = subparsers.add_parser("get-consumption", help="Get energy consumption for today", parents=[common_parser])

@@ -27,22 +27,31 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-## Demo Application
+## Demo Applications
 
-We provide a specialized demo script `demo.py` that serves as a reference implementation. It demonstrates:
-- Authentication flow
-- Device discovery
-- Fetching full installation status (Gateways -> Devices -> Features)
-- Working with typed Data Models (`Device` and `Feature`)
+We provide two demo scripts to help you get started:
 
-**Usage:**
+### 1. Mock Demo (Standard / Educational)
+**File:** `demo_mock.py`
+Best for learning the library architecture without needing an API account or credentials.
+- Uses `MockViessmannClient` with offline data.
+- Demonstrates the **3 Data Layers** (Raw -> Model -> Flat).
 
 ```bash
-# Export your Client ID (so you don't have to edit the code)
+python demo_mock.py
+```
+
+### 2. Live Demo (Functional)
+**File:** `demo_live.py`
+Connects to the real Viessmann API to fetch your actual device data.
+- Requires standard OAuth2 login.
+- Demonstrates authentication flow and real device discovery.
+
+```bash
+# Export your Client ID first
 export VIESSMANN_CLIENT_ID=<YOUR_CLIENT_ID>
 
-# Run the demo
-python demo.py
+python demo_live.py
 ```
 
 

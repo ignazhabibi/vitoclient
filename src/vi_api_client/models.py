@@ -157,17 +157,12 @@ class Feature:
         if not data_keys:
             return []
 
-        # Rule 1: If 'value' is present, it's a standard feature. Do not expand.
-        if "value" in data_keys:
-            should_expand = False
-            
-        # Rule 2: If ALL keys are 'primary keys' (e.g. value + status), do not expand.
-        elif all(k in primary_keys for k in data_keys):
+        # Rule 1: If ALL keys are 'primary keys' (e.g. value + status), do not expand.
+        if all(k in primary_keys for k in data_keys):
             return [self]
             
-        # Rule 3: Otherwise (mixed keys, or non-primary keys like slope/starts), expand.
-        else:
-            should_expand = True
+        # Rule 2: Otherwise (mixed keys, or non-primary keys like slope/starts), expand.
+        should_expand = True
                 
         if should_expand:
             for key in data_keys:

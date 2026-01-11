@@ -1,5 +1,5 @@
 """
-Viessmann Library Demo Application.
+Viessmann Library Demo Application (Live API).
 
 This script demonstrates how to use the 'vitoclient' library to:
 1. Authenticate against the Viessmann API.
@@ -28,8 +28,8 @@ TOKEN_FILE = os.getenv("VIESSMANN_TOKEN_FILE", "tokens.json")
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
 async def main():
-    print("🚀 Viessmann Library Demo")
-    print("=========================\n")
+    print("🚀 Viessmann Library Demo (Live)")
+    print("==============================\n")
 
     # 1. Setup Authentication
     # -----------------------
