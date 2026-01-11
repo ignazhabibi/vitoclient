@@ -9,7 +9,7 @@ import sys
 from typing import Optional, Dict, Any
 
 import aiohttp
-from vi_api_client import Client, OAuth
+from vi_api_client import Client, MockViessmannClient, OAuth
 
 # Default file to store tokens and config
 TOKEN_FILE = "tokens.json"
@@ -71,6 +71,13 @@ def get_client_config(args) -> tuple[str, str]:
         
     return client_id, redirect_uri
 
+def get_client_config_safe(args) -> tuple[str, str]:
+    """Get config but return empty strings if missing (for mock mode)."""
+    # For mock mode, we don't strictly need client_id, so we can be lenient.
+    if args.mock_device:
+        return "mock_id", "mock_uri"
+    return get_client_config(args)
+
 async def cmd_list_devices(args):
     """List installations and devices."""
     client_id, redirect_uri = get_client_config(args)
@@ -106,11 +113,23 @@ async def cmd_list_devices(args):
 
 async def cmd_list_features(args):
     """List all features for a device."""
-    client_id, redirect_uri = get_client_config(args)
+    client_id, redirect_uri = get_client_config_safe(args)
 
     async with await create_session(args) as session:
         auth = OAuth(client_id, redirect_uri, args.token_file, session)
-        client = Client(auth)
+        if args.mock_device:
+            client = MockViessmannClient(args.mock_device, auth)
+            # For mock client, we don't need real installation details,
+            # but setting dummy defaults helps downstream logic
+            inst_id = 99999
+            gw_serial = "MOCK_GATEWAY_SERIAL"
+            dev_id = "0"
+            if not args.installation_id: args.installation_id = inst_id
+            if not args.gateway_serial: args.gateway_serial = gw_serial
+            if not args.device_id: args.device_id = dev_id
+            print(f"Using Mock Device: {args.mock_device}")
+        else:
+            client = Client(auth)
         
         try:
             # Auto-discovery if IDs are missing
@@ -173,11 +192,19 @@ async def cmd_list_features(args):
 
 async def cmd_get_feature(args):
     """Get a specific feature."""
-    client_id, redirect_uri = get_client_config(args)
+    client_id, redirect_uri = get_client_config_safe(args)
 
     async with await create_session(args) as session:
         auth = OAuth(client_id, redirect_uri, args.token_file, session)
-        client = Client(auth)
+        if args.mock_device:
+            client = MockViessmannClient(args.mock_device, auth)
+            print(f"Using Mock Device: {args.mock_device}")
+            # Mock defaults to skip full discovery
+            if not args.installation_id: args.installation_id = 99999
+            if not args.gateway_serial: args.gateway_serial = "MOCK_GATEWAY_SERIAL" 
+            if not args.device_id: args.device_id = "0"
+        else:
+            client = Client(auth)
         
         try:
             # Auto-discovery if IDs are missing
@@ -257,6 +284,13 @@ async def cmd_get_consumption(args):
         except Exception as e:
             _LOGGER.error("Error fetching consumption: %s", e)
 
+def cmd_list_mock_devices(args):
+    """List available mock devices."""
+    devices = MockViessmannClient.get_available_mock_devices()
+    print("Available Mock Devices:")
+    for d in devices:
+        print(f"- {d}")
+
 def main():
     """Main CLI entrypoint."""
     # Parent parser for common arguments
@@ -265,6 +299,7 @@ def main():
     common_parser.add_argument("--redirect-uri", default="http://localhost:4200/", help="OAuth Redirect URI")
     common_parser.add_argument("--token-file", default=TOKEN_FILE, help="Path to save/load tokens")
     common_parser.add_argument("--insecure", action="store_true", help="Disable SSL verification")
+    common_parser.add_argument("--mock-device", help="Use a mock device (e.g. Vitodens200W)")
 
     parser = argparse.ArgumentParser(description="Viessmann API CLI")
     subparsers = parser.add_subparsers(dest="command")
@@ -298,6 +333,9 @@ def main():
     parser_consumption.add_argument("--gateway-serial", help="Gateway Serial (optional)")
     parser_consumption.add_argument("--device-id", help="Device ID (optional)")
     
+    # List available mock devices
+    subparsers.add_parser("list-mock-devices", help="List available mock devices", parents=[common_parser])
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -321,6 +359,8 @@ def main():
             asyncio.run(cmd_get_feature(args))
         elif args.command == "get-consumption":
             asyncio.run(cmd_get_consumption(args))
+        elif args.command == "list-mock-devices":
+            cmd_list_mock_devices(args)
     except KeyboardInterrupt:
         pass
 

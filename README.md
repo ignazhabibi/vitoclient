@@ -129,7 +129,7 @@ For integrations like Home Assistant, you can implement the `AbstractAuth` class
 
 ## CLI Tool Usage
 
-The package includes a `vi_api_client` command line tool for testing authentication and exploring the API.
+The package includes a `vi-client` command line tool for testing authentication and exploring the API.
 
 > **Note**: Tokens are saved to `tokens.json` in your current directory. Do not commit this file!
 
@@ -137,10 +137,10 @@ The package includes a `vi_api_client` command line tool for testing authenticat
 Initiate the OAuth2 flow. You need your Client ID from the Viessmann Developer Portal.
 
 ```bash
-vi_api_client login --client-id <YOUR_CLIENT_ID>
+vi-client login --client-id <YOUR_CLIENT_ID>
 # Or use environment variable:
 # export VIESSMANN_CLIENT_ID=<YOUR_CLIENT_ID>
-# vi_api_client login
+# vi-client login
 ```
 Follow the URL, log in, and paste the code back into the terminal.
 
@@ -148,7 +148,7 @@ Follow the URL, log in, and paste the code back into the terminal.
 View all installations, gateways, and devices available to your account.
 
 ```bash
-vi_api_client list-devices
+vi-client list-devices
 ```
 
 ### 3. List Features
@@ -156,13 +156,13 @@ Feature names vary by device model (e.g., heat pumps vs gas boilers). Use this t
 
 ```bash
 # List all features (names only)
-vi_api_client list-features
+vi-client list-features
 
 # List only enabled features (names only)
-vi_api_client list-features --enabled
+vi-client list-features --enabled
 
 # List enabled features WITH values
-vi_api_client list-features --enabled --values
+vi-client list-features --enabled --values
 ```
 *Note: This auto-detects the first device. You can specify `--gateway-serial` and `--device-id` if needed.*
 
@@ -170,7 +170,7 @@ vi_api_client list-features --enabled --values
 Get the current value of a specific feature.
 
 ```bash
-vi_api_client get-feature "heating.sensors.temperature.outside"
+vi-client get-feature "heating.sensors.temperature.outside"
 ```
 
 ### 5. Get Consumption (Analytics)
@@ -178,18 +178,29 @@ Fetch daily energy consumption for heating, domestic hot water (DHW), and total.
 
 ```bash
 # Get summary (all metrics)
-vi_api_client get-consumption
+vi-client get-consumption
 
 # Get specific metric
-vi_api_client get-consumption --metric total
+vi-client get-consumption --metric total
 ```
 *   Returns flattened features prefixed with `analytics.` (e.g. `analytics.heating.power.consumption.total`).
 *   Data is fetched from the Viessmann Analytics API (not live data).
+
+### 6. Mock Devices (Offline Mode)
+The client includes sample data for various devices, allowing you to test integration logic without a real account.
+
+```bash
+# List available mock devices
+vi-client list-mock-devices
+
+# Use a mock device to list its features
+vi-client list-features --mock-device Vitodens200W --values
+```
 
 ### Corporate Proxy / SSL Issues
 If you are testing from a corporate network that intercepts SSL (e.g., Zscaler), you may encounter certificate errors. Use the `--insecure` flag to bypass verification:
 
 ```bash
-vi_api_client list-devices --insecure
-vi_api_client get-feature "heating.circuits.0" --insecure
+vi-client list-devices --insecure
+vi-client get-feature "heating.circuits.0" --insecure
 ```

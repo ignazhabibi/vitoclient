@@ -138,7 +138,7 @@ class Feature:
         # Note: 'day'/'week' etc are lists, but we treat them as the feature's value.
         primary_keys = {
             "value", "status", "active", "enabled", 
-            "strength", "entries", 
+            "strength", 
             "day", "week", "month", "year"
         }
 
@@ -153,13 +153,17 @@ class Feature:
         
         should_expand = False
         
+        # Rule 0: If no data keys (e.g. pure structural feature), filter it out.
+        if not data_keys:
+            return []
+
         # Rule 1: If 'value' is present, it's a standard feature. Do not expand.
         if "value" in data_keys:
             should_expand = False
             
         # Rule 2: If ALL keys are 'primary keys' (e.g. value + status), do not expand.
         elif all(k in primary_keys for k in data_keys):
-            should_expand = False
+            return [self]
             
         # Rule 3: Otherwise (mixed keys, or non-primary keys like slope/starts), expand.
         else:
@@ -171,7 +175,10 @@ class Feature:
                     flattened.append(self._create_sub_feature(key, self.properties[key]))
             return flattened
             
-        return [self]
+        # Fallback: If we had keys but decided not to expand (and not caught by rule 2?),
+        # or if data_keys was EMPTY (pure structural feature like 'heating.operating'),
+        # we return an empty list to filter it out.
+        return []
 
     def _create_sub_feature(self, suffix: str, val_obj: Any) -> "Feature":
         """Helper to create a virtual sub-feature."""
@@ -182,8 +189,14 @@ class Feature:
         # This ensures feature.value works on the result.
         new_props = {"value": val_obj}
         
+        # Avoid redundant names (e.g. heating.circuits.0.name.name -> heating.circuits.0.name)
+        if self.name.split('.')[-1] == suffix:
+             new_name = self.name
+        else:
+             new_name = f"{self.name}.{suffix}"
+        
         return Feature(
-            name=f"{self.name}.{suffix}",
+            name=new_name,
             properties=new_props,
             is_enabled=self.is_enabled,
             is_ready=self.is_ready

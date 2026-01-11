@@ -23,8 +23,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-asyncio",
     "aioresponses",
 ]
 
 [project.scripts]
-vi_api_client = "vi_api_client.cli:main"
+vi-client = "vi_api_client.cli:main"

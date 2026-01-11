@@ -13,7 +13,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "vi_api_client=vi_api_client.cli:main",
+            "vi-client=vi_api_client.cli:main",
         ],
     },
     python_requires=">=3.9",
