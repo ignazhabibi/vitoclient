@@ -73,7 +73,7 @@ class OAuth(AbstractAuth):
             with open(self.token_file, "r") as f:
                 self._token_info = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
-            self._token_info = {}
+            self._token_info = {} # Keep this line as it initializes _token_info if file not found/invalid
 
     def _save_tokens(self) -> None:
         """Save tokens to file, preserving existing content."""
@@ -106,6 +106,18 @@ class OAuth(AbstractAuth):
         
         return f"{ENDPOINT_AUTHORIZE}?{urlencode(params)}"
 
+    def _update_tokens(self, token_data: Dict[str, Any]) -> None:
+        """Update internal token state and save."""
+        self._token_info.update(token_data)
+        
+        # Calculate absolute expiration time if 'expires_in' is present
+        if "expires_in" in token_data:
+            self._token_info["expires_at"] = time.time() + token_data["expires_in"]
+            
+        self._save_tokens()
+
+
+
     async def async_fetch_details_from_code(self, code: str) -> None:
         """Exchange code for tokens."""
         if not self._pkce_verifier:
@@ -124,8 +136,7 @@ class OAuth(AbstractAuth):
                 text = await resp.text()
                 raise ViAuthError(f"Failed to fetch token: {text}")
             
-            self._token_info = await resp.json()
-            self._save_tokens()
+            self._update_tokens(await resp.json())
     
     async def async_refresh_access_token(self) -> None:
         """Refresh the access token."""
@@ -145,51 +156,24 @@ class OAuth(AbstractAuth):
                 # If refresh fails, we might need to re-auth, but here we just raise
                 raise ViAuthError(f"Failed to refresh token: {text}")
             
-            new_tokens = await resp.json()
-            # Update tokens (preserve refresh_token if not sent back, though standard usually sends a new one)
-            self._token_info.update(new_tokens)
-            self._save_tokens()
+            self._update_tokens(await resp.json())
 
     async def async_get_access_token(self) -> str:
         """Return valid access token, refreshing if necessary."""
         if not self._token_info:
             raise ViAuthError("No tokens loaded. Please authenticate first.")
 
-        # Check expiration (buffer of 60 seconds)
-        # Usually 'expires_in' is returned, we should have calculated 'expires_at' or check if we can simply try refresh
-        # Ideally, we store 'expires_at' when we save tokens. 
-        # For simplicity here, if we don't have an expiry timestamp, we just rely on the token.
-        # But robust implementations track time.
-        
-        # Let's add simple expiry handling if not present
+        # Check existing expiration (buffer of 60 seconds)
         now = time.time()
-        # Note: Viessmann API returns 'expires_in' (seconds)
-        # If we just loaded from file, we need to know when it was saved. 
-        # For this MVP, we might rely on try/except or just assume we need refresh if it's old?
-        # A better way is to save 'expires_at' in the json.
-
-        # FIX: We didn't save expires_at. Let's patch save logic locally or just always try refresh if we aren't sure?
-        # Over-refreshing is bad. 
-        # Let's check if we have an expires_at in the dict (we should inject it)
-        
         expires_at = self._token_info.get("expires_at")
+        
         if expires_at and now < expires_at - 60:
              return self._token_info["access_token"]
         
-        # If no expires_at (fresh load) or expired:
-        # If we have a refresh token, try to refresh.
+        # If expired or unknown: try refresh
         if "refresh_token" in self._token_info:
-            try:
-                await self.async_refresh_access_token()
-                # Recalculate expires_at
-                if "expires_in" in self._token_info:
-                     self._token_info["expires_at"] = time.time() + self._token_info["expires_in"]
-                     self._save_tokens()
-                return self._token_info["access_token"]
-            except ViAuthError:
-                # If refresh failed, maybe the access token is still valid? Unlikely if we thought it expired.
-                # Just raise.
-                raise
+            await self.async_refresh_access_token()
+            return self._token_info["access_token"]
 
-        # If we are here, we might have an access token but no refresh token (unlikely with offline_access)
+        # Fallback: return what we have (e.g. if offline_access scope was missing)
         return self._token_info.get("access_token", "")
