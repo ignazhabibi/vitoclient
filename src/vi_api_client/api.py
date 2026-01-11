@@ -64,7 +64,7 @@ class Client:
         async with await self.auth.request("GET", url) as resp:
             if resp.status != 200:
                 text = await resp.text()
-                raise VitoConnectionError(f"Error fetching feature {feature_name}: {resp.status} - {text}")
+                raise ViConnectionError(f"Error fetching feature {feature_name}: {resp.status} - {text}")
             data = await resp.json()
             return data.get("data", {})
 
@@ -230,5 +230,5 @@ class Client:
         async with await self.auth.request("POST", url, json=payload) as resp:
             if resp.status != 200:
                 text = await resp.text()
-                raise VitoConnectionError(f"Error fetching analytics: {resp.status} - {text}")
+                raise ViConnectionError(f"Error fetching analytics: {resp.status} - {text}")
             return await resp.json()
