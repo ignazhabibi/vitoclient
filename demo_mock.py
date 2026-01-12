@@ -1,10 +1,12 @@
 """
 Viessmann Library Demo Application.
 
-This script demonstrates the three layers of data abstraction provided by the library:
-1. RAW Layer: Direct JSON from API.
-2. MODEL Layer: Python Objects with helper methods.
-3. FLAT Layer: Validated, simplified key-value pairs (Home Assistant style).
+This script demonstrates:
+1. The **Data Layers** (Raw -> Model -> Flat -> Command) for deep understanding.
+2. The **Full Installation Status** fetch (Coordinator Pattern) used by Home Assistant.
+
+Usage:
+    python demo_mock.py
 """
 
 import asyncio
@@ -20,62 +22,108 @@ sys.path.insert(0, os.path.abspath("src"))
 from vi_api_client import MockViessmannClient, OAuth
 
 # Configure formatted logging
-logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(message)s', level=logging.INFO)
 
 async def main():
-    print("🚀 Viessmann Library - Layer Demo")
-    print("=================================\n")
+    print("🚀 Viessmann Library - Comprehensive Demo")
+    print("=======================================")
 
-    # 1. Initialization (using Mock for reliable demo execution)
-    # ----------------------------------------------------------
-    print("1. Initialization")
-    # minimal auth dummy
+    # 1. Initialization
+    # -----------------
     auth = OAuth("client_id", "redirect_url", "tokens.json") 
     client = MockViessmannClient("Vitodens200W", auth)
     
-    # Context (Mock IDs)
     inst_id = 123
     gw_serial = "1234567890123456"
     dev_id = "0"
-    
     TARGET_FEATURE = "heating.circuits.0.heating.curve"
 
-    # 2. Layer 1: RAW Data
-    # --------------------
-    print(f"\n2. RAW Layer (get_feature)")
+    print("\n[PART 1] Understanding Data Layers (Single Feature)")
+    print("---------------------------------------------------")
+    print(f"Target: {TARGET_FEATURE}")
+
+    # Layer 1: RAW
+    print(f"\n1. RAW Layer (get_feature)")
     print("   -> Returns the raw JSON dictionary exactly as the API delivers it.")
     raw_json = await client.get_feature(inst_id, gw_serial, dev_id, TARGET_FEATURE)
     print(f"   Type: {type(raw_json)}")
-    print("   Content (Snippet):")
-    print(json.dumps(raw_json, indent=2))
     
-    # 3. Layer 2: MODEL Data
-    # ----------------------
-    print(f"\n3. MODEL Layer (get_features_models / Feature.from_api)")
+    # Layer 2: MODEL
+    print(f"\n2. MODEL Layer (Feature.from_api)")
     print("   -> Returns a Python object encapsulating the data and logic.")
-    # We can convert raw data to model directly or fetch it
     from vi_api_client.models import Feature
     feature_model = Feature.from_api(raw_json)
-    
-    print(f"   Type: {type(feature_model)}")
-    print(f"   Object: {feature_model}")
-    print(f"   Name: {feature_model.name}")
-    print(f"   Properties (Keys): {list(feature_model.properties.keys())}")
-    print("   -> Note: Still encapsulates the complex structure (slope, shift in one object).")
+    print(f"   Object: {feature_model.name}")
+    print(f"   Properties: {list(feature_model.properties.keys())}")
 
-    # 4. Layer 3: FLAT / EXPANDED Layer
-    # ---------------------------------
-    print(f"\n4. FLAT Layer (expand())")
-    print("   -> Returns a list of simple, scalar features ready for UIs/Sensors.")
-    
+    # Layer 3: FLAT / EXPECTED
+    print(f"\n3. FLAT Layer (expand())")
+    print("   -> Returns simple, scalar features (Sensors) for Home Assistant.")
     flat_features = feature_model.expand()
-    print(f"   Type: {type(flat_features)} of List[Feature]")
-    print(f"   Count: {len(flat_features)}")
-    
     for f in flat_features:
         print(f"   - Entity: {f.name:<45} | Value: {f.formatted_value}")
 
-    print("\n   -> This is what Home Assistant uses to generate sensors.")
+    # Layer 4: COMMAND
+    print(f"\n4. COMMAND Layer (Inspection & Execution)")
+    print("   -> Inspect capabilities and execute actions.")
+    if feature_model.commands:
+        for cmd_name, cmd_def in feature_model.commands.items():
+            params = list(cmd_def.get("params", {}).keys())
+            print(f"   - {cmd_name}({', '.join(params)}) [Executable: {cmd_def.get('isExecutable')}]")
+            if cmd_name == "setCurve":
+                 print(f"     Constraints: {json.dumps(cmd_def['params'], indent=2)}")
+
+    print("\n   [Execution Demo]")
+    print("   Executing 'setCurve' with slope=1.4, shift=0...")
+    try:
+        result = await client.execute_command(feature_model, "setCurve", slope=1.4, shift=0)
+        print(f"   Result: {result}")
+    except Exception as e:
+        print(f"   Error: {e}")
+
+
+    print("\n\n[PART 2] Full Installation Status (Coordinator Pattern)")
+    print("-------------------------------------------------------")
+    print("Fetching everything in one call (Gateways -> Devices -> Features)...")
+    
+    devices = await client.get_full_installation_status(installation_id=inst_id)
+    
+    print(f"✅ Received {len(devices)} device(s).\n")
+    
+    for i, device in enumerate(devices):
+        print(f"🔹 Device #{i}: {device.model_id} (ID: {device.id})")
+        print(f"   • Type:   {device.device_type}")
+        print(f"   • Status: {device.status}")
+        
+        # Serial from features_flat
+        serial = next((f.value for f in device.features_flat if f.name == "device.serial"), "N/A")
+        print(f"   • Serial: {serial}")
+        
+        print(f"   • Features: {len(device.features)} (Model Objects) -> {len(device.features_flat)} (Flat Sensors)")
+        
+        print("\n   🔎 Sample Sensors (from .features_flat):")
+        interesting_keys = [
+            "heating.sensors.temperature.outside",
+            "heating.boiler.sensors.temperature.commonSupply",
+            "heating.circuits.0.heating.curve.slope", 
+        ]
+        for f in device.features_flat:
+            if f.name in interesting_keys:
+                print(f"      - {f.name:<45} : {f.value} {f.unit}")
+
+        print("\n   🛠  Available Commands (from .features):")
+        for f in device.features:
+            if f.commands:
+                # Print concise command list
+                cmds = []
+                for c_name, c_def in f.commands.items():
+                    mark = "✅" if c_def.get('isExecutable') else "❌"
+                    cmds.append(f"{mark} {c_name}")
+                print(f"      - {f.name}: {', '.join(cmds)}")
+
+    print("\n" + "="*60)
+    print("NOTE: This script uses the MOCK client (Offline).")
+    print("="*60)
 
 if __name__ == "__main__":
     try:

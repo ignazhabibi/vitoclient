@@ -4,7 +4,7 @@ This tutorial explains the high-level architecture of `api.py`. The `Client` cla
 
 ## 1. The Big Picture
 
-The library is designed in layers (see `demo.py` for a runnable example):
+The library is designed in layers (see `demo_mock.py` for a runnable example):
 
 1.  **Network Layer (`auth.py`)**: Handles HTTP, Tokens, SSL.
 2.  **API Layer (`api.py`)**: Knows the URLs (`/iot/v2/...`), Handles Errors (`ViConnectionError`).
@@ -46,7 +46,18 @@ Let's trace what happens when you call `get_features_with_values`:
     - Checks Output: `if resp.status != 200: raise ViConnectionError`
     - Returns: Raw JSON.
 
-## 4. Error Handling
+## 4. Full Installation Status (Integration Pattern)
+
+For integrations like Home Assistant that need to fetch the entire state of an installation at once, use `get_full_installation_status`.
+
+```python
+devices = await client.get_full_installation_status(installation_id)
+# Returns List[Device] with all features loaded (and flattened versions available)
+```
+
+This method is efficient because it performs the necessary API calls in bulk (Gateway -> Devices -> Features) to build a complete picture.
+
+## 5. Error Handling
 We use custom exceptions defined in `exceptions.py`:
 - `ViConnectionError`: Network down, API 500/404 errors.
 - `ViAuthError`: Token expired, Bad credentials.

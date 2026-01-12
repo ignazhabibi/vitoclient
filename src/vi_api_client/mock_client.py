@@ -134,3 +134,91 @@ class MockViessmannClient(Client):
         # Mock analytics support could be added later.
         # Returning empty list or None is safer than crashing.
         return []
+
+    async def execute_command(
+        self,
+        feature: Any, # Use Any to avoid circular import or redefine Type
+        command_name: str,
+        params: Dict[str, Any] = {},
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Mock execution of a command."""
+        final_params = params.copy()
+        final_params.update(kwargs)
+        # Validate command exists
+        if command_name not in feature.commands:
+            raise ValueError(
+                f"Command '{command_name}' not found in feature '{feature.name}'. "
+                f"Available: {list(feature.commands.keys())}"
+            )
+            
+        cmd_def = feature.commands[command_name]
+        
+        # Check if command is executable
+        if "isExecutable" in cmd_def and not cmd_def["isExecutable"]:
+             raise ValueError(f"Command '{command_name}' is currently not executable (isExecutable=False).")
+
+        uri = cmd_def.get("uri")
+        
+        if not uri:
+             raise ValueError(f"Command '{command_name}' has no URI definition.")
+
+        # 2. Local Parameter Validation (Helpful error messages)
+        cmd_params_def = cmd_def.get("params", {})
+        
+        missing_params = []
+        for param_name, param_info in cmd_params_def.items():
+            if param_info.get("required", False):
+                if param_name not in final_params:
+                    missing_params.append(param_name)
+                    continue
+
+            if param_name in final_params:
+                value = final_params[param_name]
+                p_type = param_info.get("type")
+                
+                # Type Check
+                if p_type == "number":
+                    if not isinstance(value, (int, float)):
+                         raise TypeError(f"Parameter '{param_name}' must be a number, got {type(value).__name__}")
+                    
+                    # Number Constraints
+                    min_val = param_info.get("min")
+                    if min_val is not None and value < min_val:
+                         raise ValueError(f"Parameter '{param_name}' ({value}) is less than minimum ({min_val})")
+                         
+                    max_val = param_info.get("max")
+                    if max_val is not None and value > max_val:
+                         raise ValueError(f"Parameter '{param_name}' ({value}) is greater than maximum ({max_val})")
+
+                elif p_type == "boolean":
+                    if not isinstance(value, bool):
+                         # Be strict about booleans to avoid ambiguity
+                         raise TypeError(f"Parameter '{param_name}' must be a boolean, got {type(value).__name__}")
+
+                elif p_type == "string":
+                    if not isinstance(value, str):
+                        raise TypeError(f"Parameter '{param_name}' must be a string, got {type(value).__name__}")
+                        
+                    # Enum Constraint
+                    enum_vals = param_info.get("enum")
+                    if enum_vals and value not in enum_vals:
+                         raise ValueError(f"Parameter '{param_name}' ('{value}') is not a valid option. Allowed: {enum_vals}")
+                    
+                    # Regex Constraint
+                    import re
+                    regex_pattern = param_info.get("constraints", {}).get("regEx")
+                    if regex_pattern:
+                        if not re.match(regex_pattern, value):
+                             raise ValueError(f"Parameter '{param_name}' ('{value}') does not match required pattern: {regex_pattern}")
+
+        if missing_params:
+            raise ValueError(
+                f"Missing required parameters for command '{command_name}': {missing_params}. "
+                f"Required: {[k for k,v in cmd_params_def.items() if v.get('required')]}"
+            )
+
+        print(f"[MOCK] Executing command '{command_name}' on feature '{feature.name}' with params: {final_params}")
+        # In a real mock, we could update the local JSON/cache to reflect the change.
+        # For now, just return success.
+        return {"success": True, "reason": "Mock Execution"}

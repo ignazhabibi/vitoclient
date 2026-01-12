@@ -11,6 +11,7 @@ class Feature:
     properties: Dict[str, Any]
     is_enabled: bool
     is_ready: bool
+    commands: Dict[str, Any] = field(default_factory=dict)
     
     @property
     def value(self) -> Union[str, int, float, bool, list, None]:
@@ -114,7 +115,8 @@ class Feature:
             name=data.get("feature", ""),
             properties=data.get("properties", {}),
             is_enabled=data.get("isEnabled", False),
-            is_ready=data.get("isReady", False)
+            is_ready=data.get("isReady", False),
+            commands=data.get("commands", {})
         )
 
 

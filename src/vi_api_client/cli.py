@@ -296,6 +296,170 @@ async def cmd_get_consumption(args):
         except Exception as e:
             _LOGGER.error("Error fetching consumption: %s", e)
 
+async def cmd_exec(args):
+    """Execute a command."""
+    client_id, redirect_uri = get_client_config_safe(args)
+    
+    # Check if user provided JSON string (legacy/complex) or key=value pairs
+    params = {}
+    
+    # args.params is now a list strings (nargs='*')
+    # If first arg looks like JSON object, try to parse it as such
+    if args.params and len(args.params) == 1 and args.params[0].strip().startswith("{"):
+         try:
+             params = json.loads(args.params[0])
+         except json.JSONDecodeError:
+             print("Error: Invalid JSON string provided.")
+             return
+    elif args.params:
+        # Key=Value parsing
+        for item in args.params:
+            if "=" not in item:
+                print(f"Error: Invalid argument format '{item}'. Expected key=value.")
+                return
+            key, val_str = item.split("=", 1)
+            
+            # Type inference
+            value = val_str
+            if val_str.lower() == "true":
+                value = True
+            elif val_str.lower() == "false":
+                value = False
+            else:
+                try:
+                    value = int(val_str)
+                except ValueError:
+                    try:
+                        value = float(val_str)
+                    except ValueError:
+                        # Try parsing as JSON (e.g. for nested objects or lists)
+                        if val_str.startswith("[") or val_str.startswith("{"):
+                             try:
+                                 value = json.loads(val_str)
+                             except json.JSONDecodeError:
+                                 pass # Keep as string
+            
+            params[key] = value
+
+    async with await create_session(args) as session:
+        auth = OAuth(client_id, redirect_uri, args.token_file, session)
+        if args.mock_device:
+            client = MockViessmannClient(args.mock_device, auth)
+            print(f"Using Mock Device: {args.mock_device}")
+            # Mock defaults
+            if not args.installation_id: args.installation_id = 99999
+            if not args.gateway_serial: args.gateway_serial = "MOCK_GATEWAY_SERIAL" 
+            if not args.device_id: args.device_id = "0"
+        else:
+            client = Client(auth)
+            
+        try:
+            # Auto-discovery (simplified from cmd_get_feature)
+            inst_id = args.installation_id
+            gw_serial = args.gateway_serial
+            dev_id = args.device_id
+            
+            if not (inst_id and gw_serial and dev_id):
+                 if not args.mock_device:
+                    # Minimal discovery if needed for real API
+                    gateways = await client.get_gateways()
+                    if gateways:
+                        gw_serial = gateways[0]["serial"]
+                        inst_id = gateways[0]["installationId"]
+                        devices = await client.get_devices(inst_id, gw_serial)
+                        if devices:
+                            # Prioritize device "0" (Heating System) over "gateway" or others
+                            target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
+                            dev_id = target_dev["id"]
+                            print(f"Auto-selected device {dev_id} on {gw_serial}")
+
+            if not (inst_id and gw_serial and dev_id):
+                print("Could not determine context (installation/gateway/device). Please specify args.")
+                return
+
+            # 1. Fetch the feature to get metadata (url)
+            print(f"Fetching feature '{args.feature_name}'...")
+            feature_data = await client.get_feature(inst_id, gw_serial, dev_id, args.feature_name)
+            
+            from vi_api_client.models import Feature
+            feature = Feature.from_api(feature_data)
+            
+            # 2. Execute
+            print(f"Executing '{args.command_name}' with {params}...")
+            result = await client.execute_command(feature, args.command_name, params)
+            
+            print("Success!")
+            print(json.dumps(result, indent=2))
+
+        except Exception as e:
+            _LOGGER.error("Error executing command: %s", e)
+
+async def cmd_list_commands(args):
+    """List all available commands for a device."""
+    client_id, redirect_uri = get_client_config_safe(args)
+
+    async with await create_session(args) as session:
+        auth = OAuth(client_id, redirect_uri, args.token_file, session)
+        if args.mock_device:
+            client = MockViessmannClient(args.mock_device, auth)
+            print(f"Using Mock Device: {args.mock_device}")
+            if not args.installation_id: args.installation_id = 99999
+            if not args.gateway_serial: args.gateway_serial = "MOCK_GATEWAY_SERIAL" 
+            if not args.device_id: args.device_id = "0"
+        else:
+            client = Client(auth)
+            
+        try:
+            # Auto-discovery
+            inst_id = args.installation_id
+            gw_serial = args.gateway_serial
+            dev_id = args.device_id
+            
+            if not (inst_id and gw_serial and dev_id):
+                 if not args.mock_device:
+                    gateways = await client.get_gateways()
+                    if gateways:
+                        gw_serial = gateways[0]["serial"]
+                        inst_id = gateways[0]["installationId"]
+                        devices = await client.get_devices(inst_id, gw_serial)
+                        if devices:
+                             # Prioritize device "0" (Heating System)
+                            target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
+                            dev_id = target_dev["id"]
+                            print(f"Using Device: {dev_id} (Gateway: {gw_serial}, Inst: {inst_id})")
+
+            # Fetch all features (using models/raw mostly equivalent here as propertes are always loaded)
+            # using get_features_models to get Feature objects directly
+            features = await client.get_features_models(inst_id, gw_serial, dev_id)
+            
+            commandable_features = [f for f in features if f.commands]
+            
+            print(f"\nFound {len(commandable_features)} features with commands:\n")
+            
+            for f in commandable_features:
+                print(f"Feature: {f.name}")
+                for cmd_name, cmd_def in f.commands.items():
+                    print(f"  Command: {cmd_name}")
+                    params = cmd_def.get("params", {})
+                    if not params:
+                        print("    (No parameters)")
+                    else:
+                        for p_name, p_def in params.items():
+                            req_str = "*" if p_def.get("required") else ""
+                            type_str = p_def.get("type", "unknown")
+                            constraints = []
+                            if "min" in p_def: constraints.append(f"min={p_def['min']}")
+                            if "max" in p_def: constraints.append(f"max={p_def['max']}")
+                            if "stepping" in p_def: constraints.append(f"step={p_def['stepping']}")
+                            if "enum" in p_def: constraints.append(f"enum={p_def['enum']}")
+                            
+                            constr_str = f" [{', '.join(constraints)}]" if constraints else ""
+                            print(f"    - {p_name}{req_str} ({type_str}){constr_str}")
+                print("")
+
+        except Exception as e:
+            _LOGGER.error("Error listing commands: %s", e)
+
 def cmd_list_mock_devices(args):
     """List available mock devices."""
     devices = MockViessmannClient.get_available_mock_devices()
@@ -349,6 +513,22 @@ def main():
     # List available mock devices
     subparsers.add_parser("list-mock-devices", help="List available mock devices", parents=[common_parser])
     
+    # List Commands
+    parser_cmds = subparsers.add_parser("list-commands", help="List all available commands for a device", parents=[common_parser])
+    parser_cmds.add_argument("--installation-id", type=int, help="Installation ID (optional)")
+    parser_cmds.add_argument("--gateway-serial", help="Gateway Serial (optional)")
+    parser_cmds.add_argument("--device-id", help="Device ID (optional)")
+
+    # Exec Command
+    parser_exec = subparsers.add_parser("exec", help="Execute a command on a feature (e.g. set curve)", parents=[common_parser])
+    parser_exec.add_argument("feature_name", help="Feature Name (e.g. heating.circuits.0.heating.curve)")
+    parser_exec.add_argument("command_name", help="Command Name (e.g. setCurve)")
+    parser_exec.add_argument("params", nargs="*", help="Parameters (key=value OR single JSON string)")
+    parser_exec.add_argument("--installation-id", type=int, help="Installation ID (optional)")
+    parser_exec.add_argument("--gateway-serial", help="Gateway Serial (optional)")
+    parser_exec.add_argument("--device-id", help="Device ID (optional)")
+
+
     args = parser.parse_args()
     
     if not args.command:
@@ -374,6 +554,10 @@ def main():
             asyncio.run(cmd_get_consumption(args))
         elif args.command == "list-mock-devices":
             cmd_list_mock_devices(args)
+        elif args.command == "list-commands":
+            asyncio.run(cmd_list_commands(args))
+        elif args.command == "exec":
+            asyncio.run(cmd_exec(args))
     except KeyboardInterrupt:
         pass
 
