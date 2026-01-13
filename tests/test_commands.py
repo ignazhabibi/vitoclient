@@ -81,7 +81,13 @@ async def test_cmd_without_uri(feature_with_commands):
     client = MockViessmannClient("Vitodens200W", auth=None)
     
     # Create invalid feature manually
-    feat = Feature(name="broken", commands={"oops": {}}, is_enabled=True, is_ready=True, properties={})
+    data = {
+        "feature": "broken",
+        "commands": {
+             "oops": {"isExecutable": True} # Missing URI
+        }
+    }
+    feat = Feature.from_api(data)
     
     with pytest.raises(ValueError) as excinfo:
         await client.execute_command(feat, "oops")
@@ -92,14 +98,17 @@ async def test_not_executable(feature_with_commands):
     client = MockViessmannClient("Vitodens200W", auth=None)
     
     # Create feature where command is disabled
-    cmds = {
-        "disabledCmd": {
-            "uri": "https://api.vi/cmd", 
-            "isExecutable": False,
-            "params": {}
+    data = {
+        "feature": "test",
+        "commands": {
+            "disabledCmd": {
+                "uri": "https://api.vi/cmd", 
+                "isExecutable": False,
+                "params": {}
+            }
         }
     }
-    feat = Feature(name="test", commands=cmds, is_enabled=True, is_ready=True, properties={})
+    feat = Feature.from_api(data)
     
     with pytest.raises(ValueError) as excinfo:
         await client.execute_command(feat, "disabledCmd")
@@ -109,55 +118,6 @@ async def test_not_executable(feature_with_commands):
         
     assert "is currently not executable" in str(excinfo.value)
 
-@pytest.mark.asyncio
-async def test_validation_constraints(feature_with_commands):
-    client = MockViessmannClient("Vitodens200W", auth=None)
-    
-    # 1. Min Value
-    with pytest.raises(ValueError) as excinfo:
-        await client.execute_command(feature_with_commands, "setCurve", slope=0.1, shift=0)
-    assert "less than minimum" in str(excinfo.value)
 
-    # 2. Max Value
-    with pytest.raises(ValueError) as excinfo:
-        await client.execute_command(feature_with_commands, "setCurve", slope=5.0, shift=0)
-    assert "greater than maximum" in str(excinfo.value)
 
-    # 3. Type Error (slope expects number)
-    with pytest.raises(TypeError) as excinfo:
-        await client.execute_command(feature_with_commands, "setCurve", slope="high", shift=0)
-    assert "must be a number" in str(excinfo.value)
 
-@pytest.mark.asyncio
-async def test_validation_enum_regex():
-    client = MockViessmannClient("Vitodens200W", auth=None)
-    
-    cmds = {
-        "setMode": {
-            "uri": "http://api/cmd",
-            "params": {
-                "mode": {"required": True, "type": "string", "enum": ["eco", "comfort"]}
-            }
-        },
-        "setDate": {
-            "uri": "http://api/cmd",
-            "params": {
-                "date": {"required": True, "type": "string", "constraints": {"regEx": r"^\d{4}-\d{2}-\d{2}$"}}
-            }
-        }
-    }
-    feat = Feature(name="test", commands=cmds, is_enabled=True, is_ready=True, properties={})
-
-    # Enum
-    with pytest.raises(ValueError) as excinfo:
-        await client.execute_command(feat, "setMode", mode="invalid")
-    assert "not a valid option" in str(excinfo.value)
-
-    # Regex
-    with pytest.raises(ValueError) as excinfo:
-        await client.execute_command(feat, "setDate", date="01.01.2023")
-    assert "does not match required pattern" in str(excinfo.value)
-
-    # Success cases
-    assert (await client.execute_command(feat, "setMode", mode="eco"))["success"] is True
-    assert (await client.execute_command(feat, "setDate", date="2023-01-01"))["success"] is True

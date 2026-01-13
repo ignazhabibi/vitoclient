@@ -3,6 +3,36 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
+from .validation import validate_command_params
+
+@dataclass
+class Command:
+    """Representation of a generic command on a feature."""
+    name: str
+    uri: str
+    is_executable: bool
+    params: Dict[str, Any] = field(default_factory=dict)
+    
+    def validate(self, params: Dict[str, Any]) -> None:
+        """Validate parameters against this command's definition.
+        
+        Delegates to the validation module.
+        """
+        # Construct the structure expected by validation logic
+        # (It expects the full command definition dict with a 'params' key)
+        cmd_def_proxy = {"params": self.params}
+        validate_command_params(self.name, cmd_def_proxy, params)
+
+    @classmethod
+    def from_api(cls, name: str, data: Dict[str, Any]) -> "Command":
+        """Create Command from API dictionary."""
+        return cls(
+            name=name,
+            uri=data.get("uri", ""),
+            is_executable=data.get("isExecutable", True),
+            params=data.get("params", {})
+        )
+
 @dataclass
 class Feature:
     """Representation of a Viessmann feature."""
@@ -11,7 +41,7 @@ class Feature:
     properties: Dict[str, Any]
     is_enabled: bool
     is_ready: bool
-    commands: Dict[str, Any] = field(default_factory=dict)
+    commands: Dict[str, Command] = field(default_factory=dict)
     
     @property
     def value(self) -> Union[str, int, float, bool, list, None]:
@@ -116,7 +146,10 @@ class Feature:
             properties=data.get("properties", {}),
             is_enabled=data.get("isEnabled", False),
             is_ready=data.get("isReady", False),
-            commands=data.get("commands", {})
+            commands={
+                name: Command.from_api(name, cmd_data) 
+                for name, cmd_data in data.get("commands", {}).items()
+            }
         )
 
 

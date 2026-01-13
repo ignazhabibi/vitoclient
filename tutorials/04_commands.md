@@ -33,6 +33,12 @@ You can inspect what commands are available for this feature.
 ```python
 print(feature.commands.keys())
 # Output: dict_keys(['setCurve'])
+
+# Access specific command details (Typed Object)
+cmd = feature.commands['setCurve']
+print(cmd.name)           # 'setCurve'
+print(cmd.is_executable)  # True
+print(cmd.params)         # Dict of constraints
 ```
 
 ### 3. Execute the Command

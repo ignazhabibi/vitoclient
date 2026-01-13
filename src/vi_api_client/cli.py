@@ -300,46 +300,13 @@ async def cmd_exec(args):
     """Execute a command."""
     client_id, redirect_uri = get_client_config_safe(args)
     
-    # Check if user provided JSON string (legacy/complex) or key=value pairs
-    params = {}
-    
-    # args.params is now a list strings (nargs='*')
-    # If first arg looks like JSON object, try to parse it as such
-    if args.params and len(args.params) == 1 and args.params[0].strip().startswith("{"):
-         try:
-             params = json.loads(args.params[0])
-         except json.JSONDecodeError:
-             print("Error: Invalid JSON string provided.")
-             return
-    elif args.params:
-        # Key=Value parsing
-        for item in args.params:
-            if "=" not in item:
-                print(f"Error: Invalid argument format '{item}'. Expected key=value.")
-                return
-            key, val_str = item.split("=", 1)
-            
-            # Type inference
-            value = val_str
-            if val_str.lower() == "true":
-                value = True
-            elif val_str.lower() == "false":
-                value = False
-            else:
-                try:
-                    value = int(val_str)
-                except ValueError:
-                    try:
-                        value = float(val_str)
-                    except ValueError:
-                        # Try parsing as JSON (e.g. for nested objects or lists)
-                        if val_str.startswith("[") or val_str.startswith("{"):
-                             try:
-                                 value = json.loads(val_str)
-                             except json.JSONDecodeError:
-                                 pass # Keep as string
-            
-            params[key] = value
+    # Parse parameters using helper
+    try:
+        from .parsers import parse_cli_params
+        params = parse_cli_params(args.params)
+    except ValueError as e:
+        print(f"Error parsing parameters: {e}")
+        return
 
     async with await create_session(args) as session:
         auth = OAuth(client_id, redirect_uri, args.token_file, session)
@@ -438,9 +405,9 @@ async def cmd_list_commands(args):
             
             for f in commandable_features:
                 print(f"Feature: {f.name}")
-                for cmd_name, cmd_def in f.commands.items():
+                for cmd_name, cmd in f.commands.items():
                     print(f"  Command: {cmd_name}")
-                    params = cmd_def.get("params", {})
+                    params = cmd.params
                     if not params:
                         print("    (No parameters)")
                     else:

@@ -67,11 +67,11 @@ async def main():
     print(f"\n4. COMMAND Layer (Inspection & Execution)")
     print("   -> Inspect capabilities and execute actions.")
     if feature_model.commands:
-        for cmd_name, cmd_def in feature_model.commands.items():
-            params = list(cmd_def.get("params", {}).keys())
-            print(f"   - {cmd_name}({', '.join(params)}) [Executable: {cmd_def.get('isExecutable')}]")
+        for cmd_name, cmd in feature_model.commands.items():
+            params = list(cmd.params.keys())
+            print(f"   - {cmd_name}({', '.join(params)}) [Executable: {cmd.is_executable}]")
             if cmd_name == "setCurve":
-                 print(f"     Constraints: {json.dumps(cmd_def['params'], indent=2)}")
+                 print(f"     Constraints: {json.dumps(cmd.params, indent=2)}")
 
     print("\n   [Execution Demo]")
     print("   Executing 'setCurve' with slope=1.4, shift=0...")
@@ -116,8 +116,8 @@ async def main():
             if f.commands:
                 # Print concise command list
                 cmds = []
-                for c_name, c_def in f.commands.items():
-                    mark = "✅" if c_def.get('isExecutable') else "❌"
+                for c_name, cmd in f.commands.items():
+                    mark = "✅" if cmd.is_executable else "❌"
                     cmds.append(f"{mark} {c_name}")
                 print(f"      - {f.name}: {', '.join(cmds)}")
 

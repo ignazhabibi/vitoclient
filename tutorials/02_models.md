@@ -27,6 +27,12 @@ The `Feature` class stores the raw data but provides properties to access it eas
 - `from_api(data)`: A factory method that creates a `Feature` object from the raw dict.
 - `is_enabled`: Checks the "isEnabled" flag.
 - `is_ready`: Checks the "isReady" flag.
+- `commands`: A dictionary of `Command` objects (strongly typed).
+
+### The `Command` Class
+Instead of raw dictionaries, we use a `Command` dataclass:
+- `name`, `uri`, `is_executable`.
+- `validate(params)`: Validates input against constraints (min/max, enum, etc.) before sending.
 
 ### The `expand()` Method
 This is the most important piece of logic. It "flattens" complex objects into simple key-value pairs.

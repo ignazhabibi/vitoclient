@@ -98,8 +98,20 @@ async def main():
                     # The 'formatted_value' property handles units and types automatically
                     print(f"     - {feature.name:<45} : {feature.formatted_value}")
                 
-                if len(enabled_features) > 10:
                     print(f"     ... and {len(enabled_features) - 10} more.")
+
+                # Show commands
+                commandable_features = [f for f in device.features if f.commands]
+                if commandable_features:
+                    print(f"\n   🛠  Available Commands ({len(commandable_features)} features):")
+                    for feature in commandable_features:
+                         # Show command name and execution status
+                        cmd_list = []
+                        for cmd_name, cmd in feature.commands.items():
+                             is_exec = "✅" if cmd.is_executable else "❌"
+                             cmd_list.append(f"{is_exec} {cmd_name}")
+                        
+                        print(f"     - {feature.name:<45} : {', '.join(cmd_list)}")
 
         except Exception as e:
             print(f"❌ Error fetching data: {e}")

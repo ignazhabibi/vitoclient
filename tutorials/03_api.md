@@ -63,3 +63,11 @@ We use custom exceptions defined in `exceptions.py`:
 - `ViAuthError`: Token expired, Bad credentials.
 
 By catching these specific errors, your application can react intelligently (e.g., "Retry later" vs "Ask user for password again").
+
+## 6. Command Execution
+The API also supports writing values back to the device.
+- Method: `client.execute_command(feature, command_name, params)`
+- Logic:
+    1. Looks up the command in the `Feature` object.
+    2. Validates parameters locally (fail fast).
+    3. Sends a POST request to the command's URI.

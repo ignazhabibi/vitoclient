@@ -10,6 +10,7 @@ Designed for integration with Home Assistant and other async Python applications
 - **Auto-Discovery**: Automatically finds installations, gateways, and devices.
 - **Recursive Feature Flattening**: Converts complex nested JSON into a simple list of sensors (e.g., `heating.circuits.0.heating.curve.shift`).
 - **Command Execution**: Supports writing values and executing commands on devices (e.g. `setCurve`).
+- **Analytics API**: Fetch historical energy consumption data (gas/electricity).
 - **Mock Client**: Includes a robust `MockViessmannClient` for offline development and testing.
 
 ## Installation
@@ -94,8 +95,8 @@ Execute a command on a feature (e.g. setting heating curve).
 # Easy key=value inputs (auto-converted to numbers/bools)
 vi-client exec heating.circuits.0.heating.curve setCurve slope=1.4 shift=0
 
-# Or using JSON string
-# vi-client exec heating.circuits.0.heating.curve setCurve '{"slope": 1.4, "shift": 0}' 
+# The tool automatically validates your input before sending:
+# > ValueError: Parameter 'slope' (5.0) is greater than maximum (3.5)
 ```
 
 ### 7. Get Consumption (Analytics)
