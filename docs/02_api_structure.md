@@ -83,6 +83,44 @@ Some features have multiple properties and controls (commands).
 *   **Properties**: access properties via `feature.properties["slope"]["value"]` OR use `feature.expand()` to get two separate features (`...curve.slope` and `...curve.shift`).
 *   **Commands**: `feature.commands["setCurve"]` allows you to modify the curve, automatically respecting the `min`/`max` constraints defined in the JSON.
 
+## 4. Mental Model: Flat vs. Structured
+
+The library offers two ways to look at the same data. Choosing the right one is key to effective usage.
+
+### The "Inventory" vs. "Toolbox" Analogy
+
+| View | Attribute | Analogy | Use Case |
+| :--- | :--- | :--- | :--- |
+| **Flat** | `device.features_flat` | **Inventory** | **Reading Values (Sensors)**. You want a list of everything the device knows (Temperature, Slope, Error Code). You don't care how it's organized. |
+| **Structured** | `device.features` | **Toolbox** | **Interaction (Controls)**. You want to *do* something. You need the "Object" that holds the Command (`setCurve`) and the Context (Slope *and* Shift). |
+
+### Code Example
+
+**1. Reading (Flat)**
+```python
+# Just give me the value!
+for f in device.features_flat:
+    if f.name == "heating.circuits.0.heating.curve.slope":
+        print(f"Slope: {f.value}")
+```
+
+**2. Writing (Structured)**
+```python
+# I need to change settings!
+# 1. Get the PARENT feature (the toolbox)
+feature = device.get_feature("heating.circuits.0.heating.curve")
+
+# 2. Access sibling properties directly (Context)
+current_slope = feature.properties["slope"]["value"]
+current_shift = feature.properties["shift"]["value"]
+
+# 3. Execute Command (needs both)
+await client.execute_command(feature, "setCurve", {
+    "slope": 1.6,
+    "shift": current_shift
+})
+```
+
 ## Summary
 
 *   **Don't look for specific Python methods** for every sensor.
