@@ -7,7 +7,7 @@ import aiohttp
 from vi_api_client.api import Client
 from vi_api_client.auth import AbstractAuth
 from vi_api_client.const import API_BASE_URL, ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_ANALYTICS_THERMAL
-from vi_api_client.exceptions import ViConnectionError
+from vi_api_client.exceptions import ViConnectionError, ViNotFoundError, ViServerInternalError
 from vi_api_client.models import Feature
 
 
@@ -61,7 +61,8 @@ class TestClient:
                 auth = MockAuth(session)
                 client = Client(auth)
                 
-                with pytest.raises(ViConnectionError):
+                # Should still raise ViServerInternalError for 500
+                with pytest.raises(ViServerInternalError):
                     await client.get_installations()
 
     @pytest.mark.asyncio
@@ -182,12 +183,13 @@ class TestClient:
                 auth = MockAuth(session)
                 client = Client(auth)
                 
-                with pytest.raises(ViConnectionError) as exc_info:
+                # Update expectation to ViNotFoundError
+                with pytest.raises(ViNotFoundError) as exc_info:
                     await client.get_feature(
                         123456, "1234567890", "0", "nonexistent.feature"
                     )
                 
-                assert "404" in str(exc_info.value)
+                assert "Feature not found" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_features_with_values(self):
@@ -239,12 +241,13 @@ class TestClient:
                 
                 # Test 1: Only enabled
                 features = await client.get_features_with_values(123456, "1234567890", "0", only_enabled=True)
-                # heating.sensors.temperature.outside -> 1
+                # heating.sensors.temperature.outside -> 1 (value + status are both primary keys -> no expansion)
                 # heating.nested.complex -> expands to .currentDay and .lastMonth -> 2
                 # heating.small.list -> 1
                 # Total = 4
                 assert len(features) == 4
                 
+                # Check that outside is NOT split
                 f1 = next(f for f in features if f["name"] == "heating.sensors.temperature.outside")
                 assert "12.5 celsius" in f1["value"]
                 

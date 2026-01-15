@@ -1,7 +1,7 @@
 
 import pytest
 from vi_api_client.models import Feature
-from vi_api_client import MockViessmannClient
+from vi_api_client import MockViClient
 
 @pytest.fixture
 def feature_with_commands():
@@ -26,7 +26,7 @@ def feature_with_commands():
 
 @pytest.mark.asyncio
 async def test_execute_command_success_kwargs(feature_with_commands):
-    client = MockViessmannClient("Vitodens200W", auth=None)
+    client = MockViClient("Vitodens200W", auth=None)
     
     # Test valid kwargs execution
     result = await client.execute_command(
@@ -39,7 +39,7 @@ async def test_execute_command_success_kwargs(feature_with_commands):
 
 @pytest.mark.asyncio
 async def test_execute_command_success_mixed(feature_with_commands):
-    client = MockViessmannClient("Vitodens200W", auth=None)
+    client = MockViClient("Vitodens200W", auth=None)
     
     # Test mixed params (dict) and kwargs
     params = {"slope": 1.4}
@@ -53,7 +53,7 @@ async def test_execute_command_success_mixed(feature_with_commands):
 
 @pytest.mark.asyncio
 async def test_validation_missing_param(feature_with_commands):
-    client = MockViessmannClient("Vitodens200W", auth=None)
+    client = MockViClient("Vitodens200W", auth=None)
     
     # Missing required 'shift'
     with pytest.raises(ValueError) as excinfo:
@@ -67,7 +67,7 @@ async def test_validation_missing_param(feature_with_commands):
 
 @pytest.mark.asyncio
 async def test_validation_unknown_command(feature_with_commands):
-    client = MockViessmannClient("Vitodens200W", auth=None)
+    client = MockViClient("Vitodens200W", auth=None)
     
     with pytest.raises(ValueError) as excinfo:
         await client.execute_command(
@@ -78,7 +78,7 @@ async def test_validation_unknown_command(feature_with_commands):
 
 @pytest.mark.asyncio
 async def test_cmd_without_uri(feature_with_commands):
-    client = MockViessmannClient("Vitodens200W", auth=None)
+    client = MockViClient("Vitodens200W", auth=None)
     
     # Create invalid feature manually
     data = {
@@ -95,7 +95,7 @@ async def test_cmd_without_uri(feature_with_commands):
 
 @pytest.mark.asyncio
 async def test_not_executable(feature_with_commands):
-    client = MockViessmannClient("Vitodens200W", auth=None)
+    client = MockViClient("Vitodens200W", auth=None)
     
     # Create feature where command is disabled
     data = {
@@ -113,11 +113,4 @@ async def test_not_executable(feature_with_commands):
     with pytest.raises(ValueError) as excinfo:
         await client.execute_command(feat, "disabledCmd")
         
-    with pytest.raises(ValueError) as excinfo:
-        await client.execute_command(feat, "disabledCmd")
-        
     assert "is currently not executable" in str(excinfo.value)
-
-
-
-

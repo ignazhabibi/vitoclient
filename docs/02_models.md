@@ -54,17 +54,19 @@ This is the most important piece of logic. It "flattens" complex objects into si
 
 ```python
     def expand(self) -> List["Feature"]:
-        # Rule 1: It's a simple feature (e.g. just has 'value' and 'status'). 
-        # Don't expand, just use it.
-        if all(k in primary_keys for k in data_keys):
+        # Efficiently check if feature is scalar using set operations.
+        # If yes: Do not expand (we use .value).
+        data_keys = {k for k in self.properties.keys() if k not in ignore}
+        
+        if data_keys.issubset(VALUE_PRIORITY_SET):
             return [self]
             
-        # Rule 2: It's complex (e.g. 'slope', 'day', 'month').
+        # Otherwise: It is a complex object (e.g. 'slope', 'day', 'month').
         # Create a new sub-feature for each key.
-        formatted = []
-        for key in data_keys:
-             formatted.append(self._create_sub_feature(key, ...))
-        return formatted
+        flattened = []
+        for key in sorted(data_keys):
+             flattened.append(self._create_sub_feature(key, ...))
+        return flattened
 ```
 
 ## 3. Why this matters

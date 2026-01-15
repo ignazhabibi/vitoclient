@@ -53,7 +53,7 @@ async def main():
             print("✅ Authentication successful (cached tokens found).")
         except Exception:
             print("⚠️  No valid tokens found.")
-            print(f"Please use the CLI tool to login first: 'vi_api_client login --client-id {CLIENT_ID}'")
+            print(f"Please use the CLI tool to login first: 'vi-client login --client-id {CLIENT_ID}'")
             return
 
         # 3. Initialize Client
@@ -96,8 +96,12 @@ async def main():
                 # Print first 10 as sample
                 for feature in enabled_features[:10]:
                     # The 'formatted_value' property handles units and types automatically
-                    print(f"     - {feature.name:<45} : {feature.formatted_value}")
-                
+                    val = feature.formatted_value
+                    if len(val) > 80:
+                        val = val[:77] + "..."
+                    print(f"     - {feature.name:<75} : {val}")
+                    
+                if len(enabled_features) > 10:
                     print(f"     ... and {len(enabled_features) - 10} more.")
 
                 # Show commands
@@ -111,7 +115,7 @@ async def main():
                              is_exec = "✅" if cmd.is_executable else "❌"
                              cmd_list.append(f"{is_exec} {cmd_name}")
                         
-                        print(f"     - {feature.name:<45} : {', '.join(cmd_list)}")
+                        print(f"     - {feature.name:<75} : {', '.join(cmd_list)}")
 
         except Exception as e:
             print(f"❌ Error fetching data: {e}")

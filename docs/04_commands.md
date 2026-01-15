@@ -4,7 +4,7 @@ This tutorial demonstrates how to modify device settings by executing commands.
 
 ## Prerequisites
 
-Ensure you have authenticated and have a valid `client` instance (see [01_authentication.md](01_authentication.md)).
+Ensure you have authenticated and have a valid `client` instance (see [01_auth.md](01_auth.md)).
 
 ## The Concept
 
@@ -69,6 +69,6 @@ else:
 
 ## Important Notes
 
-1. **Parameters**: The parameters must mirror the JSON structure expected by the API. use `vi-client get <feature>` to inspect the constraints in the `commands` section.
+1. **Parameters**: The parameters must mirror the JSON structure expected by the API. use `vi-client list-commands` to inspect the constraints in the `commands` section.
 2. **Context**: Logic for dependent parameters (e.g. sending both slope and shift) must be handled by your application logic. The client just sends what you pass it.
-3. **Mocking**: The `MockViessmannClient` supports `execute_command` and will return a success response without performing network calls.
+3. **Mocking**: The `MockViClient` supports `execute_command` and will return a success response without performing network calls.

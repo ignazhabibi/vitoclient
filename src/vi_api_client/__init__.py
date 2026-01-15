@@ -2,18 +2,30 @@
 
 from .auth import AbstractAuth, OAuth
 from .api import Client
-from .mock_client import MockViessmannClient
-from .exceptions import ViError, ViAuthError, ViConnectionError
+from .mock_client import MockViClient
+from .exceptions import (
+    ViError, 
+    ViAuthError, 
+    ViConnectionError,
+    ViNotFoundError,
+    ViRateLimitError,
+    ViValidationError,
+    ViServerInternalError
+)
 from .models import Device, Feature
 
 __all__ = [
-    "Client",
-    "OAuth",
     "AbstractAuth",
+    "Client",
     "Device",
     "Feature",
-    "ViError",
+    "MockViClient",
+    "OAuth",
     "ViAuthError",
     "ViConnectionError",
-    "MockViessmannClient",
+    "ViError",
+    "ViNotFoundError",
+    "ViRateLimitError",
+    "ViValidationError",
+    "ViServerInternalError",
 ]

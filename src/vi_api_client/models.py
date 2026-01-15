@@ -5,7 +5,15 @@ from typing import Any, Dict, List, Optional, Union
 
 from .validation import validate_command_params
 
-@dataclass
+# Priority keys as a Set for faster lookup (O(1)) in checks
+VALUE_PRIORITY_KEYS = [
+    "value", "status", "active", "enabled", "strength", "entries",
+    "day", "week", "month", "year"
+]
+# For set operations (subset checks)
+VALUE_PRIORITY_SET = set(VALUE_PRIORITY_KEYS)
+
+@dataclass(frozen=True)
 class Command:
     """Representation of a generic command on a feature."""
     name: str
@@ -14,18 +22,11 @@ class Command:
     params: Dict[str, Any] = field(default_factory=dict)
     
     def validate(self, params: Dict[str, Any]) -> None:
-        """Validate parameters against this command's definition.
-        
-        Delegates to the validation module.
-        """
-        # Construct the structure expected by validation logic
-        # (It expects the full command definition dict with a 'params' key)
-        cmd_def_proxy = {"params": self.params}
-        validate_command_params(self.name, cmd_def_proxy, params)
+        """Validate parameters."""
+        validate_command_params(self.name, self.params, params)
 
     @classmethod
     def from_api(cls, name: str, data: Dict[str, Any]) -> "Command":
-        """Create Command from API dictionary."""
         return cls(
             name=name,
             uri=data.get("uri", ""),
@@ -33,7 +34,7 @@ class Command:
             params=data.get("params", {})
         )
 
-@dataclass
+@dataclass(frozen=True)
 class Feature:
     """Representation of a Viessmann feature."""
     
@@ -44,70 +45,49 @@ class Feature:
     commands: Dict[str, Command] = field(default_factory=dict)
     
     @property
-    def value(self) -> Union[str, int, float, bool, list, None]:
-        """Tries to extract the main value for the feature.
-        
-        Prioritizes: 'value' > 'status' > 'active' > 'enabled'.
-        For lists (e.g. consumption history), returns the raw list.
+    def _primary_data(self) -> Union[Dict[str, Any], Any, None]:
+        """
+        Internal Helper: Finds the 'main' data object based on priority.
+        Used by both .value and .unit to avoid double-looping.
         """
         if not self.properties:
             return None
-            
-        # 1. Standard 'value'
-        if "value" in self.properties:
-            val_obj = self.properties["value"]
-            if isinstance(val_obj, dict) and "value" in val_obj:
-                return val_obj["value"]
-            # Fallback if 'value' property is not a dict structure but direct value (rare but possible)
-            if not isinstance(val_obj, dict):
-                return val_obj
-
-        # 2. 'status'
-        if "status" in self.properties:
-            val_obj = self.properties["status"]
-            if isinstance(val_obj, dict) and "value" in val_obj:
-                return val_obj["value"]
-
-        # 3. 'active' (Boolean)
-        if "active" in self.properties:
-            val_obj = self.properties["active"]
-            if isinstance(val_obj, dict) and "value" in val_obj:
-                return val_obj["value"]
-                
-        # 5. 'strength' (Wifi)
-        if "strength" in self.properties:
-            val_obj = self.properties["strength"]
-            if isinstance(val_obj, dict) and "value" in val_obj:
-                return val_obj["value"]
-
-        # 6. 'entries' (Error/Status Messages)
-        if "entries" in self.properties:
-            val_obj = self.properties["entries"]
-            if isinstance(val_obj, dict) and "value" in val_obj:
-                return val_obj["value"]
-            # Sometimes entries is a direct list
-            if isinstance(val_obj, list):
-                return val_obj
-
-        # 7. History Lists (day/week/month/year)
-        # If we didn't find a scalar 'value', check for common history keys
-        for key in ["day", "week", "month", "year"]:
-             if key in self.properties:
-                val_obj = self.properties[key]
-                if isinstance(val_obj, dict) and "value" in val_obj:
-                    return val_obj["value"]
-
+        
+        # Search for primary value key in properties.
+        for key in VALUE_PRIORITY_KEYS:
+            if key in self.properties:
+                return self.properties[key]
         return None
 
     @property
+    def value(self) -> Union[str, int, float, bool, list, None]:
+        """Extract the main value."""
+        data = self._primary_data
+        
+        if data is None:
+            return None
+            
+        # Standard Case: {"value": 10}
+        if isinstance(data, dict) and "value" in data:
+            return data["value"]
+            
+        # Edge Case: Raw value or List (History)
+        return data
+
+    @property
     def unit(self) -> Optional[str]:
-        """Extract unit if available from the primary value property."""
-        # Check definitions in order
-        for key in ["value", "status", "day", "week", "month"]:
-             if key in self.properties:
-                val_obj = self.properties[key]
-                if isinstance(val_obj, dict):
-                    return val_obj.get("unit")
+        """Extract unit."""
+        # 1. Try to get unit from the primary data object (nested case)
+        # e.g. properties={'status': {'value': 'ok', 'unit': 'stat'}}
+        data = self._primary_data
+        if isinstance(data, dict):
+            return data.get("unit")
+            
+        # 2. Fallback: Check if unit exists as a direct property (flat case)
+        # e.g. properties={'value': 10, 'unit': 'celsius'}
+        if "unit" in self.properties:
+            return self.properties["unit"]
+            
         return None
 
     @property
@@ -117,30 +97,74 @@ class Feature:
         u = self.unit
         
         if val is None:
-            # Fallback: dump properties cleanly
-            parts = []
-            for k, v in self.properties.items():
-                if isinstance(v, dict) and "value" in v:
-                    # Extract value/unit from sub-property
-                    sub_val = v["value"]
-                    sub_unit = v.get("unit", "")
-                    parts.append(f"{k}: {sub_val} {sub_unit}".strip())
-                else:
-                    parts.append(f"{k}: {v}")
-            return ", ".join(parts)
+            return self._format_dump_properties()
             
+        # Formatting for Lists (History Data)
         if isinstance(val, list):
-            # For short lists, show the content for better debugging
-            if len(val) <= 10:
-                # Convert items to string to ensure join works
-                return str(val) + (f" {u}".strip() if u else "")
-            return f"List[{len(val)} items] {u or ''}".strip()
+            content = str(val) if len(val) <= 10 else f"List[{len(val)} items]"
+            return f"{content} {u}".strip() if u else content
             
         return f"{val} {u}".strip() if u else str(val)
 
+    def _format_dump_properties(self) -> str:
+        """Fallback: dump all properties nicely."""
+        parts = []
+        for k, v in self.properties.items():
+            if isinstance(v, dict) and "value" in v:
+                parts.append(f"{k}: {v['value']} {v.get('unit', '')}".strip())
+            else:
+                parts.append(f"{k}: {v}")
+        return ", ".join(parts)
+
+    def expand(self) -> List["Feature"]:
+        """Expand complex features into a list of simple scalar features."""
+        ignore_keys = {"unit", "type", "displayValue", "links"}
+        
+        # Get actual data keys
+        data_keys = {k for k in self.properties.keys() if k not in ignore_keys}
+        
+        if not data_keys:
+            return []
+
+        # Efficiently check if feature is scalar using set operations.
+        # If yes: Do not expand (we use .value).
+        if data_keys.issubset(VALUE_PRIORITY_SET):
+            return [self]
+
+        # Otherwise: It is a complex object (e.g. curve has slope & shift) -> Expand
+        flattened = []
+        # Sort iteration to ensure deterministic behavior
+        for key in sorted(data_keys):
+            flattened.append(self._create_sub_feature(key, self.properties[key]))
+            
+        return flattened
+
+    def _create_sub_feature(self, suffix: str, val_obj: Any) -> "Feature":
+        """Helper to create a virtual sub-feature."""
+        # Normalize val_obj to be a dict with a 'value' key
+        # Handle cases where val_obj is a dict but doesn't have 'value' (e.g. raw dict)
+        if isinstance(val_obj, dict) and "value" in val_obj:
+            new_props = val_obj
+        else:
+            new_props = {"value": val_obj}
+        
+        # Preserve unit if it was lost in normalization (e.g. raw dict without value key but with unit)
+        if isinstance(val_obj, dict) and "unit" in val_obj and "unit" not in new_props:
+            new_props["unit"] = val_obj["unit"]
+
+        # Clean name generation
+        new_name = self.name if self.name.endswith(f".{suffix}") else f"{self.name}.{suffix}"
+        
+        return Feature(
+            name=new_name,
+            properties=new_props, # Sub-Feature has normalized structure
+            is_enabled=self.is_enabled,
+            is_ready=self.is_ready,
+            commands={} 
+        )
+
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "Feature":
-        """Factory method to create feature from API response."""
         return cls(
             name=data.get("feature", ""),
             properties=data.get("properties", {}),
@@ -152,90 +176,9 @@ class Feature:
             }
         )
 
-
-    def expand(self) -> List["Feature"]:
-        """Expand complex features into a list of simple scalar features.
-        
-        Automatically handles:
-        - Lists (summaries): ...summary.dhw -> [...currentDay, ...lastMonth]
-        - Composites: ...curve -> [...slope, ...shift]
-        - Metrics: ...statistics -> [...starts, ...hours]
-        - Limits: ...levels -> [...min, ...max]
-        
-        Preserves simple features like 'temperature' (value) or 'wifi' (strength) as single items.
-        """
-        flattened = []
-        
-        # Metadata keys to ignore during analysis
-        ignore_keys = {"unit", "type", "displayValue", "links"}
-        
-        # Keys that indicate this is a "Primary Value" feature (do not expand if this is the only key)
-        # Note: 'day'/'week' etc are lists, but we treat them as the feature's value.
-        primary_keys = {
-            "value", "status", "active", "enabled", 
-            "strength", 
-            "day", "week", "month", "year"
-        }
-
-        # Filter properties to significant data keys
-        data_keys = [k for k in self.properties.keys() if k not in ignore_keys]
-        
-        # Decision Logic:
-        # 1. If multiple data keys -> It's a composite (e.g. starts + hours, or min + max). Expand ALL.
-        # 2. If single data key BUT it's not a primary key (e.g. only 'slope'?) -> Expand it to be safe/explicit.
-        #    (Example: 'heating.curve' might rarely strictly just have 'slope').
-        # 3. If single data key AND it IS a primary key -> Simple feature. Keep self.
-        
-        should_expand = False
-        
-        # Rule 0: If no data keys (e.g. pure structural feature), filter it out.
-        if not data_keys:
-            return []
-
-        # Rule 1: If ALL keys are 'primary keys' (e.g. value + status), do not expand.
-        if all(k in primary_keys for k in data_keys):
-            return [self]
-            
-        # Rule 2: Otherwise (mixed keys, or non-primary keys like slope/starts), expand.
-        should_expand = True
-                
-        if should_expand:
-            for key in data_keys:
-                if key in self.properties:
-                    flattened.append(self._create_sub_feature(key, self.properties[key]))
-            return flattened
-            
-        # Fallback: If we had keys but decided not to expand (and not caught by rule 2?),
-        # or if data_keys was EMPTY (pure structural feature like 'heating.operating'),
-        # we return an empty list to filter it out.
-        return []
-
-    def _create_sub_feature(self, suffix: str, val_obj: Any) -> "Feature":
-        """Helper to create a virtual sub-feature."""
-        # Ensure the value object is wrapped in standard structure {"value": ...} for the new feature
-        # If val_obj is already {"value": 11, "unit": "kWh"}, we can use it as the "value" property of the new feature.
-        
-        # We construct a new property dict where "value" is the primary key
-        # This ensures feature.value works on the result.
-        new_props = {"value": val_obj}
-        
-        # Avoid redundant names (e.g. heating.circuits.0.name.name -> heating.circuits.0.name)
-        if self.name.split('.')[-1] == suffix:
-             new_name = self.name
-        else:
-             new_name = f"{self.name}.{suffix}"
-        
-        return Feature(
-            name=new_name,
-            properties=new_props,
-            is_enabled=self.is_enabled,
-            is_ready=self.is_ready
-        )
-
-@dataclass
+@dataclass(frozen=True)
 class Device:
     """Representation of a Viessmann device."""
-    
     id: str
     gateway_serial: str
     installation_id: int
@@ -246,18 +189,20 @@ class Device:
 
     @property
     def features_flat(self) -> List[Feature]:
-        """Return a flattened list of all features.
-        
-        Complex features are broken down into simple scalars.
-        """
-        all_flat = []
+        """Return a flattened list of all features."""
+        # List comprehension is slightly faster than loop + extend
+        return [sub_f for f in self.features for sub_f in f.expand()]
+    
+    # Helper for fast access
+    def get_feature(self, name: str) -> Optional[Feature]:
+        """O(n) lookup helper."""
         for f in self.features:
-            all_flat.extend(f.expand())
-        return all_flat
+            if f.name == name:
+                return f
+        return None
 
     @classmethod
     def from_api(cls, data: Dict[str, Any], gateway_serial: str, installation_id: int) -> "Device":
-        """Factory method to create device from API response."""
         return cls(
             id=data.get("id", ""),
             gateway_serial=gateway_serial,

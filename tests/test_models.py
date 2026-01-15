@@ -150,7 +150,13 @@ class TestModels:
             "isEnabled": True, 
             "properties": {"slope": {"value": 1}, "shift": {"value": 2}}
         })
-        d.features = [f_simple, f_complex]
+        
+        # Instantiate directly to populate frozen field
+        d = Device(
+            id="0", model_id="vitocal", device_type="heating", status="Online",
+            gateway_serial="gw1", installation_id=123,
+            features=[f_simple, f_complex]
+        )
         
         flat = d.features_flat
         assert len(flat) == 3 # 1 simple + 2 from complex

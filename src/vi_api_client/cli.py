@@ -6,16 +6,35 @@ import json
 import logging
 import os
 import sys
-from typing import Optional, Dict, Any
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from typing import Optional, Dict, Any, Union, AsyncGenerator
 
 import aiohttp
-from vi_api_client import Client, MockViessmannClient, OAuth
+from vi_api_client import (
+    Client, 
+    MockViClient, 
+    OAuth,
+    ViValidationError,
+    ViNotFoundError,
+    ViAuthError,
+    ViRateLimitError
+)
 
 # Default file to store tokens and config
 TOKEN_FILE = "tokens.json"
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 _LOGGER = logging.getLogger(__name__)
+
+@dataclass
+class CLIContext:
+    session: aiohttp.ClientSession
+    client: Union[Client, MockViClient]
+    # Found IDs (either from args or auto-discovery)
+    inst_id: int
+    gw_serial: str
+    dev_id: str
 
 def load_config(token_file: str) -> Dict[str, Any]:
     """Load configuration from token file."""
@@ -24,7 +43,6 @@ def load_config(token_file: str) -> Dict[str, Any]:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
-
 
 
 async def create_session(args) -> aiohttp.ClientSession:
@@ -75,29 +93,73 @@ def get_client_config_safe(args) -> tuple[str, str]:
         return "mock_id", "mock_uri"
     return get_client_config(args)
 
-async def cmd_list_devices(args):
-    """List installations and devices."""
-    client_id, redirect_uri = get_client_config(args)
-
+@asynccontextmanager
+async def setup_client_context(args, discover: bool = True) -> AsyncGenerator[CLIContext, None]:
+    """
+    Creates Session, Auth, Client AND performs Auto-Discovery if needed.
+    """
+    client_id, redirect_uri = get_client_config_safe(args)
+    
     async with await create_session(args) as session:
         auth = OAuth(client_id, redirect_uri, args.token_file, session)
-        client = Client(auth)
+        
+        # Initialize Client
+        if args.mock_device:
+            client = MockViClient(args.mock_device, auth)
+            # Default mock IDs
+            inst_id = getattr(args, "installation_id", None) or 99999
+            gw_serial = getattr(args, "gateway_serial", None) or "MOCK_GATEWAY"
+            dev_id = getattr(args, "device_id", None) or "0"
+            print(f"Using Mock Device: {args.mock_device}")
+        else:
+            client = Client(auth)
+            inst_id = getattr(args, "installation_id", None)
+            gw_serial = getattr(args, "gateway_serial", None)
+            dev_id = getattr(args, "device_id", None)
 
+            # Perform Auto-Discovery if IDs are missing
+            if discover and not (inst_id and gw_serial and dev_id):
+                gateways = await client.get_gateways()
+                if not gateways:
+                    print("No gateways found.")
+                    raise ValueError("No gateways found.")
+                
+                if not gw_serial:
+                    gw_serial = gateways[0]["serial"]
+                if not inst_id:
+                    inst_id = gateways[0]["installationId"]
+                
+                if not dev_id:
+                    devices = await client.get_devices(inst_id, gw_serial)
+                    if not devices:
+                        raise ValueError("No devices found.")
+                    
+                    # Prefer Device "0" (Heating System)
+                    target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
+                    dev_id = target_dev["id"]
+                    print(f"Auto-selected Context: Inst={inst_id}, GW={gw_serial}, Dev={dev_id}")
+
+        yield CLIContext(session, client, inst_id, gw_serial, dev_id)
+
+async def cmd_list_devices(args):
+    """List installations and devices."""
+    # Does not use full context discovery, just client
+    async with setup_client_context(args, discover=False) as ctx:
         try:
-            installations = await client.get_installations()
+            installations = await ctx.client.get_installations()
             print(f"Found {len(installations)} Installations:")
             for inst in installations:
                 inst_id = inst.get("id")
                 print(f"- Installation ID: {inst_id}")
                 
-            gateways = await client.get_gateways()
+            gateways = await ctx.client.get_gateways()
             print(f"\nFound {len(gateways)} Gateways:")
             for gw in gateways:
                 gw_serial = gw.get("serial")
                 inst_id = gw.get("installationId")
                 print(f"- Gateway: {gw_serial} (Inst: {inst_id})")
                 
-                devices = await client.get_devices(inst_id, gw_serial)
+                devices = await ctx.client.get_devices(inst_id, gw_serial)
                 print(f"  Devices ({len(devices)}):")
                 for dev in devices:
                     dev_id = dev.get("id")
@@ -110,128 +172,60 @@ async def cmd_list_devices(args):
 
 async def cmd_list_features(args):
     """List all features for a device."""
-    client_id, redirect_uri = get_client_config_safe(args)
-
-    async with await create_session(args) as session:
-        auth = OAuth(client_id, redirect_uri, args.token_file, session)
-        if args.mock_device:
-            client = MockViessmannClient(args.mock_device, auth)
-            # For mock client, we don't need real installation details,
-            # but setting dummy defaults helps downstream logic
-            inst_id = 99999
-            gw_serial = "MOCK_GATEWAY_SERIAL"
-            dev_id = "0"
-            if not args.installation_id: args.installation_id = inst_id
-            if not args.gateway_serial: args.gateway_serial = gw_serial
-            if not args.device_id: args.device_id = dev_id
-            print(f"Using Mock Device: {args.mock_device}")
-        else:
-            client = Client(auth)
-        
-        try:
-            # Auto-discovery if IDs are missing
-            inst_id = args.installation_id
-            gw_serial = args.gateway_serial
-            dev_id = args.device_id
-            
-            if not (inst_id and gw_serial and dev_id):
-                gateways = await client.get_gateways()
-                if not gateways:
-                    print("No gateways found.")
-                    return
-                gw = gateways[0]
-                gw_serial = gw.get("serial")
-                inst_id = gw.get("installationId")
-                
-                devices = await client.get_devices(inst_id, gw_serial)
-                if not devices:
-                    print(f"No devices found on gateway {gw_serial}")
-                    return
-                # Default to device 0 if available, else first one
-                target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
-                dev_id = target_dev.get("id")
-                print(f"Using Device: {dev_id} (Gateway: {gw_serial}, Inst: {inst_id})")
-
-            
+    try:
+        async with setup_client_context(args) as ctx:
             if args.values:
-                # Use model-based fetching to show flat/expanded features
-                # accessible to the end user (simulating HA behavior)
-                features_models = await client.get_features_models(inst_id, gw_serial, dev_id)
-                # We create a dummy device to leverage the property (or just call expand manually)
-                # But to fully verify, let's just iterate and expand
+                features_models = await ctx.client.get_features_models(
+                    ctx.inst_id, ctx.gw_serial, ctx.dev_id
+                )
                 
-                print(f"Found {len(features_models)} Raw Features for device {dev_id}:")
-                
+                # Expand features
                 flat_list = []
                 for f in features_models:
                     if args.enabled and not f.is_enabled:
                         continue
                     flat_list.extend(f.expand())
-                    
-                print(f"Expanded to {len(flat_list)} Flat Features:")
-                for item in flat_list:
-                     print(f"- {item.name}: {item.formatted_value}")
+                
+                if args.json:
+                     # Output clean JSON list of objects
+                     out_data = [{"name": item.name, "value": item.value, "unit": item.unit, "formatted": item.formatted_value} for item in flat_list]
+                     print(json.dumps(out_data))
+                else:
+                    print(f"Found {len(features_models)} Raw Features for device {ctx.dev_id} (expanded to {len(flat_list)}):")
+                    for item in flat_list:
+                         val = item.formatted_value
+                         if len(val) > 80:
+                             val = val[:77] + "..."
+                         print(f"- {item.name:<75}: {val}")
             
             else:
-                # Standard listing (names only)
+                # Simple Listing
                 if args.enabled:
-                    features = await client.get_enabled_features(inst_id, gw_serial, dev_id)
-                    print(f"Found {len(features)} Enabled Features for device {dev_id}:")
+                    features = await ctx.client.get_enabled_features(
+                        ctx.inst_id, ctx.gw_serial, ctx.dev_id
+                    )
                 else:
-                    features = await client.get_features(inst_id, gw_serial, dev_id)
-                    print(f"Found {len(features)} Features for device {dev_id}:")
+                    features = await ctx.client.get_features(
+                        ctx.inst_id, ctx.gw_serial, ctx.dev_id
+                    )
                 
-                for f in features:
-                    print(f"- {f.get('feature')}")
-        except Exception as e:
-            _LOGGER.error("Error listing features: %s", e)
+                if args.json:
+                    # Depending on structure, but simple list of names for piping
+                    print(json.dumps([f.get("feature") for f in features]))
+                else: 
+                     print(f"Found {len(features)} Features for device {ctx.dev_id}:")
+                     for f in features:
+                        print(f"- {f.get('feature')}")
+                        
+    except Exception as e:
+        _LOGGER.error("Error listing features: %s", e)
 
 
 async def cmd_get_feature(args):
     """Get a specific feature."""
-    client_id, redirect_uri = get_client_config_safe(args)
-
-    async with await create_session(args) as session:
-        auth = OAuth(client_id, redirect_uri, args.token_file, session)
-        if args.mock_device:
-            client = MockViessmannClient(args.mock_device, auth)
-            print(f"Using Mock Device: {args.mock_device}")
-            # Mock defaults to skip full discovery
-            if not args.installation_id: args.installation_id = 99999
-            if not args.gateway_serial: args.gateway_serial = "MOCK_GATEWAY_SERIAL" 
-            if not args.device_id: args.device_id = "0"
-        else:
-            client = Client(auth)
-        
-        try:
-            # Auto-discovery if IDs are missing
-            inst_id = args.installation_id
-            gw_serial = args.gateway_serial
-            dev_id = args.device_id
-            
-            if not (inst_id and gw_serial and dev_id):
-                # We need to discover context
-                # To capture stdout/logging if needed, but for simple CLI we just call methods
-                gateways = await client.get_gateways()
-                if not gateways:
-                    print("No gateways found.")
-                    return
-                
-                # Pick first gateway
-                gw = gateways[0]
-                gw_serial = gw.get("serial")
-                inst_id = gw.get("installationId")
-                
-                # Pick priority device (0) over default first found
-                devices = await client.get_devices(inst_id, gw_serial)
-                if not devices:
-                    print(f"No devices found on gateway {gw_serial}")
-                    return
-                
-                target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
-                dev_id = target_dev.get("id")
-
-            feature_data = await client.get_feature(inst_id, gw_serial, dev_id, args.feature_name)
+    try:
+        async with setup_client_context(args) as ctx:
+            feature_data = await ctx.client.get_feature(ctx.inst_id, ctx.gw_serial, ctx.dev_id, args.feature_name)
             
             if args.raw:
                 print(json.dumps(feature_data, indent=2))
@@ -241,66 +235,33 @@ async def cmd_get_feature(args):
                 expanded = f_model.expand()
                 
                 if not expanded:
-                     # Fallback if it filters out everything (e.g. empty structural feature)
                      print(f"Feature '{args.feature_name}' exists but has no scalar values (Structural).")
                      print("Use --raw to see underlying structure.")
                 
                 for item in expanded:
                     print(f"- {item.name}: {item.formatted_value}")
-
-        except Exception as e:
-            _LOGGER.error("Error fetching feature: %s", e)
+    except ViNotFoundError:
+        print(f"Feature '{args.feature_name}' not found.")
+    except Exception as e:
+        _LOGGER.error("Error fetching feature: %s", e)
 
 async def cmd_get_consumption(args):
     """Get consumption data."""
-    client_id, redirect_uri = get_client_config(args)
-
-    async with await create_session(args) as session:
-        auth = OAuth(client_id, redirect_uri, args.token_file, session)
-        client = Client(auth)
-        
-        try:
-            # Auto-discovery if IDs are missing
-            inst_id = args.installation_id
-            gw_serial = args.gateway_serial
-            dev_id = args.device_id
-            
-            if not (inst_id and gw_serial and dev_id):
-                gateways = await client.get_gateways()
-                if not gateways:
-                    print("No gateways found.")
-                    return
-                
-                gw = gateways[0]
-                gw_serial = gw.get("serial")
-                inst_id = gw.get("installationId")
-                
-                devices = await client.get_devices(inst_id, gw_serial)
-                if not devices:
-                    print(f"No devices found on gateway {gw_serial}")
-                    return
-                
-                target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
-                dev_id = target_dev.get("id")
-                print(f"Using Device: {dev_id} (Gateway: {gw_serial}, Inst: {inst_id})")
-
+    try:
+        async with setup_client_context(args) as ctx:
             print(f"Fetching consumption (Metric: {args.metric})...")
-            result = await client.get_today_consumption(gw_serial, dev_id, metric=args.metric)
+            result = await ctx.client.get_today_consumption(ctx.gw_serial, ctx.dev_id, metric=args.metric)
             
             if isinstance(result, list):
                 for f in result:
                      print(f"- {f.name}: {f.formatted_value}")
             else:
                 print(f"- {result.name}: {result.formatted_value}")
-                
-        except Exception as e:
-            _LOGGER.error("Error fetching consumption: %s", e)
+    except Exception as e:
+        _LOGGER.error("Error fetching consumption: %s", e)
 
 async def cmd_exec(args):
     """Execute a command."""
-    client_id, redirect_uri = get_client_config_safe(args)
-    
-    # Parse parameters using helper
     try:
         from .parsers import parse_cli_params
         params = parse_cli_params(args.params)
@@ -308,128 +269,71 @@ async def cmd_exec(args):
         print(f"Error parsing parameters: {e}")
         return
 
-    async with await create_session(args) as session:
-        auth = OAuth(client_id, redirect_uri, args.token_file, session)
-        if args.mock_device:
-            client = MockViessmannClient(args.mock_device, auth)
-            print(f"Using Mock Device: {args.mock_device}")
-            # Mock defaults
-            if not args.installation_id: args.installation_id = 99999
-            if not args.gateway_serial: args.gateway_serial = "MOCK_GATEWAY_SERIAL" 
-            if not args.device_id: args.device_id = "0"
-        else:
-            client = Client(auth)
-            
-        try:
-            # Auto-discovery (simplified from cmd_get_feature)
-            inst_id = args.installation_id
-            gw_serial = args.gateway_serial
-            dev_id = args.device_id
-            
-            if not (inst_id and gw_serial and dev_id):
-                 if not args.mock_device:
-                    # Minimal discovery if needed for real API
-                    gateways = await client.get_gateways()
-                    if gateways:
-                        gw_serial = gateways[0]["serial"]
-                        inst_id = gateways[0]["installationId"]
-                        devices = await client.get_devices(inst_id, gw_serial)
-                        if devices:
-                            # Prioritize device "0" (Heating System) over "gateway" or others
-                            target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
-                            dev_id = target_dev["id"]
-                            print(f"Auto-selected device {dev_id} on {gw_serial}")
-
-            if not (inst_id and gw_serial and dev_id):
-                print("Could not determine context (installation/gateway/device). Please specify args.")
-                return
-
-            # 1. Fetch the feature to get metadata (url)
+    try:
+        async with setup_client_context(args) as ctx:
             print(f"Fetching feature '{args.feature_name}'...")
-            feature_data = await client.get_feature(inst_id, gw_serial, dev_id, args.feature_name)
+            feature_data = await ctx.client.get_feature(ctx.inst_id, ctx.gw_serial, ctx.dev_id, args.feature_name)
             
             from vi_api_client.models import Feature
             feature = Feature.from_api(feature_data)
             
-            # 2. Execute
             print(f"Executing '{args.command_name}' with {params}...")
-            result = await client.execute_command(feature, args.command_name, params)
+            result = await ctx.client.execute_command(feature, args.command_name, params)
             
             print("Success!")
             print(json.dumps(result, indent=2))
-
-        except Exception as e:
-            _LOGGER.error("Error executing command: %s", e)
+    except ViValidationError as e:
+        print(f"Validation failed: {e}")
+    except ViNotFoundError as e:
+        print(f"Not found: {e}")
+    except Exception as e:
+        _LOGGER.error("Error executing command: %s", e)
 
 async def cmd_list_commands(args):
     """List all available commands for a device."""
-    client_id, redirect_uri = get_client_config_safe(args)
-
-    async with await create_session(args) as session:
-        auth = OAuth(client_id, redirect_uri, args.token_file, session)
-        if args.mock_device:
-            client = MockViessmannClient(args.mock_device, auth)
-            print(f"Using Mock Device: {args.mock_device}")
-            if not args.installation_id: args.installation_id = 99999
-            if not args.gateway_serial: args.gateway_serial = "MOCK_GATEWAY_SERIAL" 
-            if not args.device_id: args.device_id = "0"
-        else:
-            client = Client(auth)
-            
-        try:
-            # Auto-discovery
-            inst_id = args.installation_id
-            gw_serial = args.gateway_serial
-            dev_id = args.device_id
-            
-            if not (inst_id and gw_serial and dev_id):
-                 if not args.mock_device:
-                    gateways = await client.get_gateways()
-                    if gateways:
-                        gw_serial = gateways[0]["serial"]
-                        inst_id = gateways[0]["installationId"]
-                        devices = await client.get_devices(inst_id, gw_serial)
-                        if devices:
-                             # Prioritize device "0" (Heating System)
-                            target_dev = next((d for d in devices if d.get("id") == "0"), devices[0])
-                            dev_id = target_dev["id"]
-                            print(f"Using Device: {dev_id} (Gateway: {gw_serial}, Inst: {inst_id})")
-
-            # Fetch all features (using models/raw mostly equivalent here as propertes are always loaded)
-            # using get_features_models to get Feature objects directly
-            features = await client.get_features_models(inst_id, gw_serial, dev_id)
+    try:
+        async with setup_client_context(args) as ctx:
+            # Fetch all features to introspect commands
+            features = await ctx.client.get_features_models(ctx.inst_id, ctx.gw_serial, ctx.dev_id)
             
             commandable_features = [f for f in features if f.commands]
             
             print(f"\nFound {len(commandable_features)} features with commands:\n")
             
             for f in commandable_features:
-                print(f"Feature: {f.name}")
+                print(f"- {f.name}")
                 for cmd_name, cmd in f.commands.items():
-                    print(f"  Command: {cmd_name}")
+                    is_exec = "✅" if cmd.is_executable else "❌"
+                    print(f"    Command: {cmd_name} {is_exec}")
+                    
                     params = cmd.params
-                    if not params:
-                        print("    (No parameters)")
-                    else:
+                    if params:
                         for p_name, p_def in params.items():
                             req_str = "*" if p_def.get("required") else ""
                             type_str = p_def.get("type", "unknown")
-                            constraints = []
-                            if "min" in p_def: constraints.append(f"min={p_def['min']}")
-                            if "max" in p_def: constraints.append(f"max={p_def['max']}")
-                            if "stepping" in p_def: constraints.append(f"step={p_def['stepping']}")
-                            if "enum" in p_def: constraints.append(f"enum={p_def['enum']}")
                             
-                            constr_str = f" [{', '.join(constraints)}]" if constraints else ""
-                            print(f"    - {p_name}{req_str} ({type_str}){constr_str}")
+                            c_def = p_def.get("constraints", {})
+                            constraints = []
+                            if "min" in c_def: constraints.append(f"min: {c_def['min']}")
+                            if "max" in c_def: constraints.append(f"max: {c_def['max']}")
+                            if "stepping" in c_def: constraints.append(f"step: {c_def['stepping']}")
+                            if "enum" in c_def: constraints.append(f"enum: {c_def['enum']}")
+                            if "regEx" in c_def: constraints.append(f"regex: {c_def['regEx']}")
+                            if "minLength" in c_def: constraints.append(f"minLength: {c_def['minLength']}")
+                            if "maxLength" in c_def: constraints.append(f"maxLength: {c_def['maxLength']}")
+                            
+                            print(f"      - {p_name}{req_str} ({type_str})")
+                            if constraints:
+                                print(f"          Constraints: {', '.join(constraints)}")
+                    else:
+                        print("      (No parameters)")
                 print("")
-
-        except Exception as e:
-            _LOGGER.error("Error listing commands: %s", e)
+    except Exception as e:
+        _LOGGER.error("Error listing commands: %s", e)
 
 def cmd_list_mock_devices(args):
     """List available mock devices."""
-    devices = MockViessmannClient.get_available_mock_devices()
+    devices = MockViClient.get_available_mock_devices()
     print("Available Mock Devices:")
     for d in devices:
         print(f"- {d}")
@@ -461,6 +365,7 @@ def main():
     parser_features.add_argument("--device-id", help="Device ID (optional)")
     parser_features.add_argument("--enabled", action="store_true", help="List only enabled features")
     parser_features.add_argument("--values", action="store_true", help="Show feature values")
+    parser_features.add_argument("--json", action="store_true", help="Output JSON (for lists)")
     
     # Get Feature
     parser_feature = subparsers.add_parser("get-feature", help="Get a specific feature", parents=[common_parser])
@@ -485,6 +390,7 @@ def main():
     parser_cmds.add_argument("--installation-id", type=int, help="Installation ID (optional)")
     parser_cmds.add_argument("--gateway-serial", help="Gateway Serial (optional)")
     parser_cmds.add_argument("--device-id", help="Device ID (optional)")
+
 
     # Exec Command
     parser_exec = subparsers.add_parser("exec", help="Execute a command on a feature (e.g. set curve)", parents=[common_parser])

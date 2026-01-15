@@ -58,11 +58,9 @@ devices = await client.get_full_installation_status(installation_id)
 This method is efficient because it performs the necessary API calls in bulk (Gateway -> Devices -> Features) to build a complete picture.
 
 ## 5. Error Handling
-We use custom exceptions defined in `exceptions.py`:
-- `ViConnectionError`: Network down, API 500/404 errors.
-- `ViAuthError`: Token expired, Bad credentials.
+We use a comprehensive exception hierarchy defined in `exceptions.py` (e.g. `ViConnectionError`, `ViAuthError`, `ViNotFoundError`, `ViValidationError`).
 
-By catching these specific errors, your application can react intelligently (e.g., "Retry later" vs "Ask user for password again").
+See [06_error_handling.md](06_error_handling.md) for full details on handling errors.
 
 ## 6. Command Execution
 The API also supports writing values back to the device.

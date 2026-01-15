@@ -19,7 +19,7 @@ import aiohttp
 # Ensure we can import the local package
 sys.path.insert(0, os.path.abspath("src"))
 
-from vi_api_client import MockViessmannClient, OAuth
+from vi_api_client import MockViClient, OAuth
 
 # Configure formatted logging
 logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -31,7 +31,7 @@ async def main():
     # 1. Initialization
     # -----------------
     auth = OAuth("client_id", "redirect_url", "tokens.json") 
-    client = MockViessmannClient("Vitodens200W", auth)
+    client = MockViClient("Vitodens200W", auth)
     
     inst_id = 123
     gw_serial = "1234567890123456"

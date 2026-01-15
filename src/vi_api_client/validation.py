@@ -7,23 +7,23 @@ against the API's constraints (type, min/max, enum, regex).
 from typing import Any, Dict, List
 import re
 
-def validate_command_params(command_name: str, cmd_def: Dict[str, Any], params: Dict[str, Any]) -> None:
-    """Validate parameters against the command definition.
+def validate_command_params(command_name: str, params_def: Dict[str, Any], params: Dict[str, Any]) -> None:
+    """Validate parameters against the parameter definitions.
     
     Args:
         command_name: Name of the command (for error messages).
-        cmd_def: The command definition dictionary from the API (containing 'params').
+        params_def: The parameters definition dictionary (e.g. command.params).
         params: The actual parameters provided by the user.
         
     Raises:
         ValueError: If required params are missing or constraints are violated.
         TypeError: If parameter types are incorrect.
     """
-    cmd_params_def = cmd_def.get("params", {})
     
-    # 1. Check Required Parameters
+    # Verify all required parameters are present.
     missing_params = []
-    for param_name, param_info in cmd_params_def.items():
+    
+    for param_name, param_info in params_def.items():
         if param_info.get("required", False):
             if param_name not in params:
                 missing_params.append(param_name)
@@ -31,23 +31,23 @@ def validate_command_params(command_name: str, cmd_def: Dict[str, Any], params: 
     if missing_params:
         raise ValueError(
             f"Missing required parameters for command '{command_name}': {missing_params}. "
-            f"Required: {[k for k,v in cmd_params_def.items() if v.get('required')]}"
+            f"Required: {[k for k,v in params_def.items() if v.get('required')]}"
         )
 
     # 2. Check Constraints for provided parameters
     for param_name, value in params.items():
-        # Skip parameters not defined in the API (optional: could also raise error for unknown params)
-        if param_name not in cmd_params_def:
+        # Skip parameters not defined in the API
+        if param_name not in params_def:
             continue
             
-        _validate_single_param(param_name, value, cmd_params_def[param_name])
+        _validate_single_param(param_name, value, params_def[param_name])
 
 
 def _validate_single_param(name: str, value: Any, rules: Dict[str, Any]) -> None:
     """Validate a single parameter against its rules."""
     p_type = rules.get("type")
     
-    # Dispatcher to avoid giant if/else blocks
+    # Use dispatcher for type validation.
     validators = {
         "number": _validate_number,
         "string": _validate_string,

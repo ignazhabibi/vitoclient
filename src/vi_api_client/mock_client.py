@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from .api import Client
 from .auth import AbstractAuth
+from .exceptions import ViNotFoundError
 
 
 class MockAuth(AbstractAuth):
@@ -17,7 +18,7 @@ class MockAuth(AbstractAuth):
         # Standard AbstractAuth expects a websession, but we don't use it in Mock
         super().__init__(websession)
 
-class MockViessmannClient(Client):
+class MockViClient(Client):
     """
     A mock client that returns static responses from JSON files.
     Useful for testing, CLI usage without credentials, and development.
@@ -124,7 +125,8 @@ class MockViessmannClient(Client):
         for f in features:
             if f.get("feature") == feature_name:
                 return f
-        return {} # Not found
+        
+        raise ViNotFoundError(f"Feature '{feature_name}' not found in mock device.")
 
     # get_today_consumption depends on Analytics API.
     # We don't have analytics samples yet, so we can return empty or mock data.
@@ -162,7 +164,7 @@ class MockViessmannClient(Client):
         if not cmd.uri:
              raise ValueError(f"Command '{command_name}' has no URI definition.")
 
-        # 2. Local Parameter Validation (Delegated to Command object)
+        # Validate parameters using the command definition.
         cmd.validate(final_params)
 
         print(f"[MOCK] Executing command '{command_name}' on feature '{feature.name}' with params: {final_params}")

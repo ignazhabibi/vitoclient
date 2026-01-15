@@ -30,7 +30,7 @@ class AbstractAuth(ABC):
         """Make an authenticated request."""
         try:
             access_token = await self.async_get_access_token()
-        except VitoAuthError:
+        except ViAuthError:
             raise
 
         headers = kwargs.get("headers", {}).copy()
