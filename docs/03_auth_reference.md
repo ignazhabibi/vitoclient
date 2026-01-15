@@ -10,12 +10,12 @@ All Auth classes accept an optional `websession` argument (an `aiohttp.ClientSes
 
 ```python
 import aiohttp
-from vi_api_client import OAuth, ViCareClient
+from vi_api_client import OAuth, Client
 
 async def main():
     async with aiohttp.ClientSession() as session:
         auth = OAuth(..., websession=session)
-        client = ViCareClient(auth)
+        client = Client(auth)
         # requests reuse the `session` pool
 ```
 

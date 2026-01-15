@@ -1,11 +1,11 @@
 # Client Reference
 
-This page describes the `ViCareClient` class, the main entry point for interacting with the Viessmann API.
+This page describes the `Client` class, the main entry point for interacting with the Viessmann API.
 
-## ViCareClient
+## Client
 
 ```python
-from vi_api_client import ViCareClient
+from vi_api_client import Client
 ```
 
 ### Constructor

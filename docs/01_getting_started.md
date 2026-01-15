@@ -12,12 +12,12 @@ pip install vi_api_client
 
 ### 1. Simple Authentication & Device List
 
-The easiest way to start is using the CLI to generate a token, or using the `ViCareClient` with an existing token.
+The easiest way to start is using the CLI to generate a token, or using the `Client` with an existing token.
 
 ```python
 import asyncio
 import os
-from vi_api_client import ViCareClient
+from vi_api_client import Client
 from vi_api_client.auth import OAuth
 
 # Configuration
@@ -32,7 +32,7 @@ async def main():
     )
     
     # 2. Initialize Client
-    client = ViCareClient(auth)
+    client = Client(auth)
 
     # 3. Discovery: Installation -> Gateway -> Device
     installations = await client.get_installations()
@@ -129,5 +129,5 @@ async def set_heating_mode(client, inst_id, gw_serial, dev_id):
 - **[API Concepts](02_api_structure.md)**: understand the data-driven design.
 - **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
 - **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
-- **[Client Reference](05_client_reference.md)**: methods on `ViCareClient`.
+- **[Client Reference](05_client_reference.md)**: methods on `Client`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.

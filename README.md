@@ -106,6 +106,6 @@ The detailed documentation is available in the `docs/` directory:
 2.  **[API Structure & Concepts](docs/02_api_structure.md)**: Understanding the data-driven design.
 3.  **[Authentication & Connection](docs/03_auth_reference.md)**: Tokens, Sessions, and Thread-Safety.
 4.  **[Models Reference](docs/04_models_reference.md)**: Devices, Features, and Commands.
-5.  **[Client Reference](docs/05_client_reference.md)**: The `ViCareClient` class.
+5.  **[Client Reference](docs/05_client_reference.md)**: The `Client` class.
 6.  **[CLI Reference](docs/06_cli_reference.md)**: Using the command line interface.
 7.  **[Exceptions Reference](docs/07_exceptions_reference.md)**: Handling errors.
