@@ -15,6 +15,7 @@ from .exceptions import (
     ViServerInternalError,
     ViError
 )
+from .utils import mask_pii
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,6 +99,7 @@ class ViConnector:
         Handles execution and delegates error checking.
         """
         try:
+            _LOGGER.debug(mask_pii(f"Request: {method} {url}"))
             async with await self.auth.request(method, url, **kwargs) as resp:
                 
                 # Verify response status and raise exceptions if needed.

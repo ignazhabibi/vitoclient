@@ -88,3 +88,22 @@ def _format_dump_properties(properties: Dict[str, Any]) -> str:
         else:
             parts.append(f"{k}: {v}")
     return ", ".join(parts)
+
+def mask_pii(text: str) -> str:
+    """Mask sensitive data (Serials, IDs, Tokens) in a string."""
+    import re
+    if not text:
+        return text
+        
+    # Mask Tokens (Bearer eyJ...)
+    text = re.sub(r'Bearer\s+[a-zA-Z0-9\-_.]+', 'Bearer ***', text)
+    
+    # Mask Gateways in URLs or JSON (16 digit serials)
+    # Pattern: gateway_serial, serial, or inside URL path
+    text = re.sub(r'(gateways/|serial":\s"?|Serial: )([0-9]{16})', r'\1****************', text)
+    
+    # Mask Installation IDs (numeric, usually 5-8 digits)
+    # Context: installations/12345/ or installation_id": 12345
+    text = re.sub(r'(installations/|installationId":\s?|ID: )([0-9]{4,10})', r'\1****', text)
+    
+    return text

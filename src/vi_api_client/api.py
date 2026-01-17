@@ -8,6 +8,9 @@ from .connection import ViConnector
 from .const import ENDPOINT_INSTALLATIONS, ENDPOINT_GATEWAYS, ENDPOINT_FEATURES, ENDPOINT_ANALYTICS_THERMAL, API_BASE_URL
 from .exceptions import ViConnectionError, ViNotFoundError
 from .models import Device, Feature, Installation, Gateway, CommandResponse
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class ViClient:
@@ -19,13 +22,19 @@ class ViClient:
 
     async def get_installations(self) -> List[Installation]:
         """Get list of installations."""
+        _LOGGER.debug("Fetching installations...")
         installations_data = await self.connector.get(ENDPOINT_INSTALLATIONS)
-        return [Installation.from_api(i) for i in installations_data.get("data", [])]
+        installations = [Installation.from_api(i) for i in installations_data.get("data", [])]
+        _LOGGER.debug(f"Found {len(installations)} installations")
+        return installations
 
     async def get_gateways(self) -> List[Gateway]:
         """Get list of gateways."""
+        _LOGGER.debug("Fetching gateways...")
         gateways_data = await self.connector.get(ENDPOINT_GATEWAYS)
-        return [Gateway.from_api(g) for g in gateways_data.get("data", [])]
+        gateways = [Gateway.from_api(g) for g in gateways_data.get("data", [])]
+        _LOGGER.debug(f"Found {len(gateways)} gateways")
+        return gateways
 
     async def get_devices(self, installation_id: str, gateway_serial: str) -> List[Device]:
         """Get devices as typed objects."""
@@ -47,8 +56,11 @@ class ViClient:
         if feature_names:
             payload["filter"] = feature_names
             
+        _LOGGER.debug(f"Fetching features for device {device.id} (enabled={only_enabled})...")
         features_data = await self.connector.post(url, payload)
-        return [Feature.from_api(f) for f in features_data.get("data", [])]
+        features = [Feature.from_api(f) for f in features_data.get("data", [])]
+        _LOGGER.debug(f"Fetched {len(features)} features for device {device.id}")
+        return features
     
     async def get_feature(self, device: Device, feature_name: str) -> Feature:
         """Get a specific feature as typed object."""
@@ -94,6 +106,7 @@ class ViClient:
         **kwargs,
     ) -> CommandResponse:
         """Execute a command on a feature."""
+        _LOGGER.debug(f"Executing command '{command_name}' on '{feature.name}' with params: {params}")
         final_params = params.copy()
         final_params.update(kwargs)
 
