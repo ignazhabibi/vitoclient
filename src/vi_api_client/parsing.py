@@ -145,62 +145,88 @@ def _find_control(
     Returns:
         FeatureControl object if a matching command is found, else None.
     """
+    # 1. Direct Command Search
+    # Iterate all commands to see if any parameter matches this property
     for cmd_name, cmd_data in commands.items():
         if not cmd_data.get("isExecutable", True):
             continue
 
         params = cmd_data.get("params", {})
-        target_param = _match_parameter(prop_key, params)
+        target_param = _match_parameter(prop_key, params, cmd_name)
 
         if target_param:
-            p_data = params[target_param]
-            constraints_dict = p_data.get("constraints", {})
-            prop_data_dict = prop_data if isinstance(prop_data, dict) else {}
-            prop_constraints = prop_data_dict.get("constraints", {})
-
-            # Priority list for finding constraints:
-            # 1. Direct param key (e.g. params[p]['min'])
-            # 2. Constraints dict (e.g. params[p]['constraints']['min'])
-            # 3. Property metadata (e.g. properties[feature]['min'])
-            # 4. Property constraints (e.g. properties[feature]['constraints']['min'])
-            sources = [p_data, constraints_dict, prop_data_dict, prop_constraints]
-
-            return FeatureControl(
-                command_name=cmd_name,
-                param_name=target_param,
-                required_params=list(params.keys()),
-                parent_feature_name=parent_name,
-                uri=cmd_data.get("uri", ""),
-                min=_resolve_constraint(["min"], sources),
-                max=_resolve_constraint(["max"], sources),
-                step=_resolve_constraint(["step", "stepping"], sources),
-                options=_resolve_constraint(["enum"], sources),
-                min_length=_resolve_constraint(["minLength"], sources),
-                max_length=_resolve_constraint(["maxLength"], sources),
-                pattern=_resolve_constraint(["pattern", "regEx"], sources),
+            return _build_control(
+                cmd_name, cmd_data, target_param, parent_name, prop_data
             )
+
     return None
 
 
-def _match_parameter(prop_key: str, params: dict[str, Any]) -> str | None:
+def _build_control(
+    cmd_name: str, cmd_data: dict, target_param: str, parent_name: str, prop_data: Any
+) -> FeatureControl:
+    """Construct FeatureControl object from command data."""
+    params = cmd_data.get("params", {})
+    p_data = params[target_param]
+    constraints_dict = p_data.get("constraints", {})
+    prop_data_dict = prop_data if isinstance(prop_data, dict) else {}
+    prop_constraints = prop_data_dict.get("constraints", {})
+
+    # Priority list for finding constraints
+    sources = [p_data, constraints_dict, prop_data_dict, prop_constraints]
+
+    return FeatureControl(
+        command_name=cmd_name,
+        param_name=target_param,
+        required_params=list(params.keys()),
+        parent_feature_name=parent_name,
+        uri=cmd_data.get("uri", ""),
+        min=_resolve_constraint(["min"], sources),
+        max=_resolve_constraint(["max"], sources),
+        step=_resolve_constraint(["step", "stepping"], sources),
+        options=_resolve_constraint(["enum"], sources),
+        min_length=_resolve_constraint(["minLength"], sources),
+        max_length=_resolve_constraint(["maxLength"], sources),
+        pattern=_resolve_constraint(["pattern", "regEx"], sources),
+    )
+
+
+def _match_parameter(
+    prop_key: str, params: dict[str, Any], cmd_name: str
+) -> str | None:
     """Determine which parameter matches the property key.
 
     Args:
         prop_key: The property name we are looking for.
         params: The command parameters dictionary.
+        cmd_name: The name of the command (for heuristics).
 
     Returns:
         The matched parameter name or None.
     """
-    # 1. Parameter name matches property key
+    # 1. Direct Match: Parameter name matches property key
     if prop_key in params:
         return prop_key
-    # 2. Parameter name matches alias
+
+    # 2. Logic Match: Known Aliases
+    # Temperature alias
     if prop_key == "temperature" and "targetTemperature" in params:
         return "targetTemperature"
-    # 3. Property is 'value' and command has exactly one parameter
-    if prop_key == "value" and len(params) == 1:
-        return next(iter(params))
+
+    # 3. Orphan Property Heuristic
+    # If property is 'switchOnValue' and command is 'set...SwitchOnValue'
+    # and there is exactly 1 parameter -> assume that parameter is correct.
+    # This handles "hysteresis" param in "setHysteresisSwitchOnValue".
+    if len(params) == 1:
+        # Check if property name is contained in command name (case-insensitive)
+        # e.g. prop="switchOnValue", cmd="setHysteresisSwitchOnValue" -> Match
+        if prop_key.lower() in cmd_name.lower():
+            return next(iter(params))
+
+        # Check specific 'value' fallback for short properties
+        if prop_key == "value":
+            return next(iter(params))
+
     return None
 
 

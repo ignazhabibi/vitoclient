@@ -49,3 +49,4 @@ MOCK_COVERAGE.md
 
 # Logs
 *.log
+.agent
