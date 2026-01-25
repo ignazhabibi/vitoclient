@@ -39,17 +39,20 @@ pytest -m integration
 
 The agent will:
 1. **Analyze Changes:** Run `git status` and `git diff` to understand what changed
-2. **Generate Message:** Create a conventional commit message based on:
-   - File patterns (e.g., `tests/` → `test:`, `docs/` → `docs:`, `.agent/` → `chore:`)
-   - Change type (feat, fix, refactor, etc.)
-   - Scope and description
+2. **Generate Message:** Create a conventional commit message following these rules:
+   - **Max 50 characters** (subject line only)
+   - **Format:** `type(scope): brief description`
+   - File patterns: `tests/` → `test:`, `docs/` → `docs:`, `.agent/` → `chore:`
 3. **Stage & Commit:** Execute `git add .` and `git commit -m "generated message"`
 
 **Example outputs:**
-- `test: add hysteresis parsing tests`
+- `test: add AAA comment specificity to all tests`
 - `fix: correct device endpoint URL construction`
-- `docs: update testing.md with AAA comment requirements`
-- `refactor: rename single-letter variables in test suite`
+- `docs: update testing.md with new requirements`
+- `refactor: rename variables in test suite`
+- `chore: update commit-push workflow`
+
+
 
 ## 3. Version Bump (Optional)
 
