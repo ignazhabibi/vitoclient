@@ -4,6 +4,7 @@ Strict guidelines for version control and feature development.
 
 ## 1. Core Principle: The "Main is Sacred" Rule
 - **NEVER** commit directly to `main`.
+    - **EXCEPTION**: Changes strictly within the `.agent/` directory (workflows, rules) MAY be committed directly to `main` to facilitate rapid agent configuration.
 - `main` must always be green (passing CI).
 - All work happens in short-lived feature branches.
 
