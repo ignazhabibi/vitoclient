@@ -94,3 +94,7 @@ async def test_get_device_details_success(respx_mock, load_fixture_json):
     assert device.is_on is True
     # Ensure raw data was parsed correctly into the model
     assert device.voltage == 230.5
+
+## 7. Mock Data Integrity
+- **Authenticity:** Fixtures in `src/vi_api_client/fixtures/` are "Gold Standard" real-world dumps.
+- **Immutable:** NEVER modify these files to satisfy tests. If a test fails because a fixture is missing a field, the test expectation is wrong (or must handle the missing field), not the data.
