@@ -20,8 +20,10 @@ MOCK_DATA_DIR = os.path.join(
 
 
 def get_mock_data_files():
-    """Get list of all mock device JSON files."""
-    return glob.glob(os.path.join(MOCK_DATA_DIR, "*.json"))
+    """Get list of all mock device JSON files (excludes analytics fixtures)."""
+    all_files = glob.glob(os.path.join(MOCK_DATA_DIR, "*.json"))
+    # Exclude analytics fixtures as they have a different structure
+    return [f for f in all_files if not f.endswith("_analytics.json")]
 
 
 @pytest.mark.parametrize("file_path", get_mock_data_files(), ids=os.path.basename)
