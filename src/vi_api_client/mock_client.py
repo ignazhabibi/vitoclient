@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .analytics import parse_consumption_response, resolve_properties
 from .api import ViClient
 from .auth import AbstractAuth
 from .models import (
@@ -75,6 +76,21 @@ class MockViClient(ViClient):
         files = [file.name for file in fixtures_dir.glob("*.json")]
         # Return sorted names without extension
         return sorted([Path(file).stem for file in files])
+
+    def _load_analytics_data(self) -> dict[str, Any] | None:
+        """Load optional analytics fixture if available.
+
+        Returns:
+            Analytics data dict if fixture exists, None otherwise.
+        """
+        fixtures_dir = Path(__file__).parent / "fixtures"
+        file_path = fixtures_dir / f"{self.device_name}_analytics.json"
+
+        if not file_path.exists():
+            return None
+
+        with file_path.open(encoding="utf-8") as file:
+            return json.load(file)
 
     def _load_data(self) -> dict[str, Any]:
         """Load the JSON data for the selected device.
@@ -207,5 +223,20 @@ class MockViClient(ViClient):
         metric: str = "summary",
         resolution: str = "1d",
     ) -> list[Feature]:
-        """Get consumption data (Mock)."""
+        """Get consumption data from analytics fixture if available.
+
+        Args:
+            device: The device object (context).
+            start_dt: Start time (not used in mock).
+            end_dt: End time (not used in mock).
+            metric: The data metric to fetch (e.g. 'summary', 'dhw').
+            resolution: Data resolution (not used in mock).
+
+        Returns:
+            List of analytics features if fixture exists, empty list otherwise.
+        """
+        analytics_data = self._load_analytics_data()
+        if analytics_data:
+            properties = resolve_properties(metric)
+            return parse_consumption_response(analytics_data, properties)
         return []
