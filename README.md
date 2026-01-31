@@ -88,7 +88,10 @@ async def main():
 
         # 4. Write a Feature
         # Find a writable feature (e.g. heating curve slope)
-        slope = next((f for f in features if "curve.slope" in f.name and f.is_writable), None)
+        slope = next(
+            (f for f in features if "curve.slope" in f.name and f.is_writable),
+            None
+        )
         if slope:
             print(f"Setting slope to 1.4...")
             await client.set_feature(device, slope, 1.4)
