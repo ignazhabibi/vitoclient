@@ -30,10 +30,12 @@ Instead of hardcoded logic, the client:
 
 ## 3. The Flat Architecture
 
-In older versions of the API (and this library), features were complex tree structures. A single "Heating Curve" feature contained properties for "slope" and "shift", and a command "setCurve" that affected both. This was confusing.
+### The Power of Flat Features
 
-**The Solution: Flat Architecture**
-The library now flattens everything into individual, addressable Features.
+Complex device capabilities are exposed as individual, addressable Features.
+
+For example, a "Heating Curve" is not a nested object you have to parse, but rather two independent features you can interact with directly:
+
 
 ### Example: Outside Temperature
 
@@ -86,10 +88,10 @@ Because of this flat design, usage is consistent:
 
 **1. Reading (Get Features)**
 ```python
-# Get a specific feature by name
-features = await client.get_features(device, ["heating.sensors.temperature.outside"])
+# Get a specific feature by name (e.g. heating curve slope)
+features = await client.get_features(device, ["heating.circuits.0.heating.curve.slope"])
 print(features[0].value)
-# Output: 12.5
+# Output: 1.4
 ```
 
 **2. Writing (Set Feature)**

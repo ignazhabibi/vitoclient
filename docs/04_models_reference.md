@@ -38,7 +38,7 @@ Represents a physical device attached to a gateway (e.g. Heating System).
 | `status` | `str` | Connection status (e.g., "Online"). |
 | `features` | `List[Feature]` | List of features supported by this device. |
 
-**Note**: In previous versions, there was a distinction between `features` and `features_flat`. In the new Flat Architecture, `features` is always a flat list of simple properties.
+
 
 ## Feature
 
