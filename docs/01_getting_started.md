@@ -99,7 +99,7 @@ async def read_features(client, device):
     print(f"Found {len(features)} features.")
 
     # Access a specific feature
-    outside_temp = next((f for f in features if f.name == "heating.sensors.temperature.outside"), None)
+    outside_temp = device.get_feature("heating.sensors.temperature.outside")
 
     if outside_temp:
         # format_feature provides a string with unit (e.g., "12.5 celsius")
