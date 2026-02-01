@@ -152,3 +152,4 @@ async def set_heating_mode(client, device):
 - **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
 - **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
 - **[CLI Reference](06_cli_reference.md)**: terminal usage.
+- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

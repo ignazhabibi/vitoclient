@@ -8,10 +8,13 @@ The package includes a command-line interface `vi-client` for testing authentica
 Initiate the OAuth2 flow. You need your Client ID from the Viessmann Developer Portal.
 
 ```bash
-vi-client login --client-id <YOUR_CLIENT_ID>
-# Or use environment variable:
+vi-client login --client-id <YOUR_CLIENT_ID> --redirect-uri <YOUR_REDIRECT_URI>
+
+# Defaults to http://localhost:4200/ if not specified.
+
+# Or use environment variables:
 # export VIESSMANN_CLIENT_ID=<YOUR_CLIENT_ID>
-# vi-client login
+# export VIESSMANN_REDIRECT_URI=<YOUR_REDIRECT_URI>
 ```
 Follow the URL, log in, and paste the code back into the terminal.
 
@@ -100,10 +103,24 @@ vi-client list-mock-devices
 vi-client list-features --mock-device Vitocal250A --values
 ```
 
-## Corporate Proxy / SSL Issues
-If you are testing from a corporate network that intercepts SSL (e.g., Zscaler), you may encounter certificate errors. Use the `--insecure` flag to bypass verification:
+## SSL Certificate Issues
+
+If you encounter SSL errors (e.g., `CERTIFICATE_VERIFY_FAILED`), this is often due to:
+1.  **macOS Python**: Your Python environment is missing root certificates.
+2.  **Corporate Networks**: Proxies like Zscaler intercepting traffic.
+
+You can use the `--insecure` flag to bypass verification:
 
 ```bash
 vi-client list-devices --insecure
 vi-client get-feature "heating.circuits.0" --insecure
 ```
+
+## Next Steps
+
+- **[Getting Started](01_getting_started.md)**: installation and basic usage.
+- **[API Concepts](02_api_structure.md)**: understand the data-driven design.
+- **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
+- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

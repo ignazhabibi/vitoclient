@@ -63,3 +63,12 @@ Tokens are stored in `token_file` as:
   "expires_at": 1700000000.0
 }
 ```
+
+## Next Steps
+
+- **[Getting Started](01_getting_started.md)**: installation and basic usage.
+- **[API Concepts](02_api_structure.md)**: understand the data-driven design.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
+- **[CLI Reference](06_cli_reference.md)**: terminal usage.
+- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

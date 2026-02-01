@@ -1,5 +1,8 @@
 # Viessmann API Python Client
 
+> [!WARNING]
+> This project is in an early stage of development. It is currently under active development, and changes (including breaking changes) are possible at any time.
+
 A Python library for accessing the [Viessmann Climate Solutions API](https://developer.viessmann-climatesolutions.com/start.html).
 Designed for integration with Home Assistant and other async Python applications.
 

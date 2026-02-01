@@ -78,8 +78,12 @@ If a feature is writable, it has a `.control` attribute with metadata:
 
 *   `command_name`: The internal command to send (e.g., `setCurve`)
 *   `param_name`: The parameter this feature maps to (e.g., `slope`)
+*   `required_params`: List of **all** parameters required by this command, including `param_name` (e.g., `['slope', 'shift']`)
+*   `parent_feature_name`: Name of the parent feature, used to resolve sibling dependencies (e.g., `heating.circuits.0.heating.curve`)
+*   `uri`: The API URI endpoint for executing the command
 *   `min` / `max` / `step`: Numerical constraints
-*   `options`: List of allowed string values (Enum)
+*   `options`: List of allowed values (Enum)
+*   `min_length` / `max_length`: String length constraints
 *   `pattern`: Regex pattern for validation
 
 ## 5. Usage Pattern
@@ -108,3 +112,12 @@ The library handles the "magic" of mapping your simple `1.6` value back to the c
 *   **Everything is a Feature**: No more "Properties" vs "Features".
 *   **Flat Names**: Use full names like `heating.circuits.0.heating.curve.slope`.
 *   **Simple Set**: Use `set_feature(device, feature, value)`.
+
+## Next Steps
+
+- **[Getting Started](01_getting_started.md)**: installation and basic usage.
+- **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
+- **[CLI Reference](06_cli_reference.md)**: terminal usage.
+- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

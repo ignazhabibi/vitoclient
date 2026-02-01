@@ -90,3 +90,12 @@ Fetches energy consumption usage for a time range.
     *   `metric`: The data metric to fetch (e.g. 'summary', 'dhw'). Default: `"summary"`.
     *   `resolution`: Resolution of data (`"1d"`, `"1w"`, `"1m"`, `"1y"`). Default: `"1d"`.
 *   **Returns**: List of `Feature` objects containing consumption values.
+
+## Next Steps
+
+- **[Getting Started](01_getting_started.md)**: installation and basic usage.
+- **[API Concepts](02_api_structure.md)**: understand the data-driven design.
+- **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
+- **[Models Reference](04_models_reference.md)**: detailed documentation of `Feature`, `Device`, and `Command`.
+- **[CLI Reference](06_cli_reference.md)**: terminal usage.
+- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.

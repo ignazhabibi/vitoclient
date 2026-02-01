@@ -6,37 +6,37 @@ This section details the core data models used in the `vi_api_client` library.
 
 Represents an installation site (House).
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `str` | Unique installation ID. |
-| `description` | `str` | Description of the installation. |
-| `alias` | `str` | Alias name. |
-| `address` | `Dict` | Address information. |
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `id` | `str` | Unique installation ID. | `'123456789'` |
+| `description` | `str` | Description of the installation. | `'Home'` |
+| `alias` | `str` | Alias name. | `'My House'` |
+| `address` | `Dict` | Address information. | `{'city': 'Berlin', ...}` |
 
 ## Gateway
 
 Represents a communication gateway (Connectivity Device).
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `serial` | `str` | Serial number of the gateway. |
-| `version` | `str` | Firmware version. |
-| `status` | `str` | Connection status. |
-| `installation_id` | `str` | ID of the associated installation. |
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `serial` | `str` | Serial number of the gateway. | `'1234567890123456'` |
+| `version` | `str` | Firmware version. | `'1.2.3'` |
+| `status` | `str` | Connection status. | `'Online'` |
+| `installation_id` | `str` | ID of the associated installation. | `'123456789'` |
 
 ## Device
 
 Represents a physical device attached to a gateway (e.g. Heating System).
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `str` | Internal ID of the device (often "0"). |
-| `installation_id` | `str` | ID of the installation site. |
-| `gateway_serial` | `str` | Serial number of the communication gateway. |
-| `model_id` | `str` | Model name (e.g., "E3_Vitocal_16"). |
-| `device_type` | `str` | Device type (e.g., "heating", "tcu"). |
-| `status` | `str` | Connection status (e.g., "Online"). |
-| `features` | `List[Feature]` | List of features supported by this device. |
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `id` | `str` | Internal ID of the device (often "0"). | `'0'` |
+| `installation_id` | `str` | ID of the installation site. | `'123456789'` |
+| `gateway_serial` | `str` | Serial number of the communication gateway. | `'1234567890123456'` |
+| `model_id` | `str` | Model name (e.g., "E3_Vitocal_16"). | `'E3_Vitocal_250A'` |
+| `device_type` | `str` | Device type (e.g., "heating", "tcu"). | `'heating'` |
+| `status` | `str` | Connection status (e.g., "Online"). | `'Online'` |
+| `features` | `List[Feature]` | List of features supported by this device. | `[Feature(...)]` |
 
 
 
@@ -44,15 +44,15 @@ Represents a physical device attached to a gateway (e.g. Heating System).
 
 The core unit of information. A feature represents a single property (Sensor) or a single setting (Control).
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `name` | `str` | Unique flat feature name (e.g., `heating.sensors.temperature.outside`). |
-| `value` | `Any` | Primary value of the feature (scalar: number, string, boolean). |
-| `unit` | `str` | Unit of measurement (e.g., "celsius", "kilowattHour"). |
-| `is_ready` | `bool` | Whether the data point is currently valid. |
-| `is_enabled` | `bool` | Whether this feature is supported by the device configuration. |
-| `is_writable` | `bool` | `True` if this feature can be modified (has a `control` block). |
-| `control` | `Optional[FeatureControl]` | Metadata for writing to this feature (if writable). |
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `name` | `str` | Unique flat feature name. | `'heating.circuits.0.heating.curve.slope'` |
+| `value` | `Any` | Primary value of the feature (scalar). | `1.4` |
+| `unit` | `str` | Unit of measurement. | `None` |
+| `is_ready` | `bool` | Whether the data point is currently valid. | `True` |
+| `is_enabled` | `bool` | Whether this feature is supported. | `True` |
+| `is_writable` | `bool` | `True` if this feature can be modified. | `True` |
+| `control` | `Optional[FeatureControl]` | Metadata for writing to this feature. | `FeatureControl(...)` |
 
 ### Formatting Values
 
@@ -69,27 +69,36 @@ If a `Feature` is writable (`is_writable=True`), it contains a `control` object 
 
 This object abstracts away the complexity of Viessmann Commands. You rarely interact with it directly, but it's useful for introspection (e.g. building a UI).
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `command_name` | `str` | The internal command name (e.g., `setCurve`). |
-| `param_name` | `str` | The parameter name this feature maps to (e.g., `slope`). |
-| `required_params` | `List[str]` | List of all parameters required for this command (dependency resolution). |
-| `parent_feature_name` | `str` | Name of the parent feature (used for sibling lookups). |
-| `uri` | `str` | The API endpoint for this specific command. |
-| `min` | `float` | Minimum allowed value (numeric). |
-| `max` | `float` | Maximum allowed value (numeric). |
-| `step` | `float` | Step increment (numeric). |
-| `options` | `List[str]` | List of valid options (enum). |
-| `pattern` | `str` | Regex pattern for validation (string). |
-| `min_length` | `int` | Minimum string length. |
-| `max_length` | `int` | Maximum string length. |
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `command_name` | `str` | The internal command name. | `'setCurve'` |
+| `param_name` | `str` | The parameter name this feature maps to. | `'slope'` |
+| `required_params` | `List[str]` | List of all parameters required for this command. | `['slope', 'shift']` |
+| `parent_feature_name` | `str` | Name of the parent feature (used for sibling lookups). | `'heating.circuits.0.heating.curve'` |
+| `uri` | `str` | The API endpoint for this specific command. | `'.../features/heating.circuits.0...'` |
+| `min` | `float` | Minimum allowed value (numeric). | `0.2` |
+| `max` | `float` | Maximum allowed value (numeric). | `3.5` |
+| `step` | `float` | Step increment (numeric). | `0.1` |
+| `options` | `List[str]` | List of valid options (enum). | `['eco', 'comfort']` |
+| `pattern` | `str` | Regex pattern for validation (string). | `'^[a-z]+$'` |
+| `min_length` | `int` | Minimum string length. | `1` |
+| `max_length` | `int` | Maximum string length. | `20` |
 
 ## CommandResponse
 
 Result of a command execution (returned by `set_feature`).
 
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `success` | `bool` | `True` if the command succeeded. |
-| `message` | `str` | Optional message from the API. |
-| `reason` | `str` | Optional failure reason or details. |
+| Property | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `success` | `bool` | `True` if the command succeeded. | `True` |
+| `message` | `str` | Optional message from the API. | `'Command accepted'` |
+| `reason` | `str` | Optional failure reason or details. | `'Feature not ready'` |
+
+## Next Steps
+
+- **[Getting Started](01_getting_started.md)**: installation and basic usage.
+- **[API Concepts](02_api_structure.md)**: understand the data-driven design.
+- **[Authentication](03_auth_reference.md)**: setup tokens and sessions.
+- **[Client Reference](05_client_reference.md)**: methods on `ViClient`.
+- **[CLI Reference](06_cli_reference.md)**: terminal usage.
+- **[Exceptions Reference](07_exceptions_reference.md)**: error handling.
